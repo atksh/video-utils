@@ -102,6 +102,7 @@ class ChannelVideoAttention(nn.Module):
         self.V = nn.Linear(dim, dim, bias=False)
         self.softmax = SoftmaxDropout(p=0.1, dim=-1)
 
+    @ckpt_forward
     def forward(self, q, k, v):
         assert all(is_video(x) for x in (q, k, v))
         height, width = q.shape[-2:]
@@ -139,6 +140,7 @@ class FullVideoAttention(nn.Module):
         self.V = nn.Linear(dim, dim, bias=False)
         self.softmax = SoftmaxDropout(p=0.1, dim=-1)
 
+    @ckpt_forward
     def forward(self, q, k, v):
         assert all(is_video(x) for x in (q, k, v))
         height, width = q.shape[-2:]
@@ -209,6 +211,7 @@ class Layer2D(nn.Module):
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
 
+    @ckpt_forward
     def forward(self, x):
         assert is_video(x)
         bsz = x.shape[0]
@@ -242,6 +245,7 @@ class Layer3D(nn.Module):
         x = torch.cat([x[:, :-1], f(q)], dim=1)
         return x
 
+    @ckpt_forward
     def forward(self, x):
         # x: (batch_size, len, dim, height, width)
         assert is_video(x)
@@ -298,13 +302,18 @@ class Upsample(nn.Module):
 class UpsampleWithRefrence(Upsample):
     def __init__(self, low_dim, high_dim, scale=2, mode="bilinear", align_corners=True):
         super().__init__(scale, mode, align_corners)
-        self.to_ref = nn.Sequential(
-            nn.Conv2d(low_dim, low_dim * 4, kernel_size=1, bias=False),
-            nn.GroupNorm(1, low_dim * 4),
+        self._to_ref = nn.Sequential(
+            nn.Conv2d(low_dim, low_dim * 2, kernel_size=1),
             nn.GELU(),
-            nn.Conv2d(low_dim * 4, high_dim * 2, kernel_size=1, bias=False),
+            nn.GroupNorm(2, low_dim * 2),
+            SELayer(low_dim * 2),
+            nn.Conv2d(low_dim * 2, high_dim * 2, kernel_size=1, bias=False),
         )
         self.high_dim = high_dim
+
+    @ckpt_forward
+    def to_ref(self, x):
+        return self._to_ref(x)
 
     def forward(self, lowres, highres):
         assert is_video(lowres) and is_video(highres)
@@ -325,6 +334,7 @@ class UpsampleWithRefrence(Upsample):
         out = self.to_video(out, bsz)
         return out
 
+    @ckpt_forward
     def transform(self, ref_xy, source):
         # ref_xy: (batch_size, 2, height, width)
         # source: (batch_size, dim, height, width)
