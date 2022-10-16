@@ -75,9 +75,10 @@ class VideoDataset(Dataset):
         frames = []
         with io.BytesIO(video_bytes) as f:
             with av.open(f, "r") as container:
-                for frame in container.decode(video=0):
-                    frames.append(frame.to_image())
-        return frames[:: self.skip_rate]
+                for i, frame in enumerate(container.decode(video=0)):
+                    if i % self.skip_rate == 0:
+                        frames.append(frame.to_image())
+        return frames
 
     def __getitem__(self, index):
         frames = self.get_frames(self.to_index[index])
