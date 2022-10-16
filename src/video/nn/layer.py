@@ -26,15 +26,6 @@ def ckpt_forward(func):
     return wrapper
 
 
-class Squeeze(nn.Module):
-    def __init__(self, dim):
-        super().__init__()
-        self.dim = dim
-
-    def forward(self, x):
-        return x.squeeze(self.dim)
-
-
 class VideoToImage(nn.Module):
     def forward(self, x):
         """(batch_size, seq_len, channel, height, width) -> (batch_size * seq_len, channel, height, width)"""
@@ -45,30 +36,6 @@ class ImageToVideo(nn.Module):
     def forward(self, x, batch_size):
         """(batch_size * seq_len, channel, height, width) -> (batch_size, seq_len, channel, height, width)"""
         return rearrange(x, "(b s) c h w -> b s c h w", b=batch_size)
-
-
-class ToChannelLastImage(nn.Module):
-    def forward(self, x):
-        """(batch_size, channel, height, width) -> (batch_size, height, width, channel)"""
-        return rearrange(x, "b c h w -> b h w c")
-
-
-class ToChannelFirstImage(nn.Module):
-    def forward(self, x):
-        """(batch_size, height, width, channel) -> (batch_size, channel, height, width)"""
-        return rearrange(x, "b h w c -> b c h w")
-
-
-class ToChannelLastVideo(nn.Module):
-    def forward(self, x):
-        """(batch_size, seq_len, channel, height, width) -> (batch_size, seq_len, height, width, channel)"""
-        return rearrange(x, "b s c h w -> b s h w c")
-
-
-class ToChannelFirstVideo(nn.Module):
-    def forward(self, x):
-        """(batch_size, seq_len, height, width, channel) -> (batch_size, seq_len, channel, height, width)"""
-        return rearrange(x, "b s h w c -> b s c h w")
 
 
 class VideoLayerNorm(nn.Module):
@@ -90,7 +57,7 @@ class VideoLayerNorm(nn.Module):
 
 
 class SELayer(nn.Module):
-    def __init__(self, dim, reduction=16):
+    def __init__(self, dim, reduction=8):
         super().__init__()
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
         intermed_dim = max(dim // reduction, 4)

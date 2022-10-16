@@ -9,8 +9,8 @@ from video.net import DataModule, Model
 if __name__ == "__main__":
     cache_dir = "cache"
     path = ["video.mp4"]
-    total_batch_size = 16
-    batch_size = 16
+    total_batch_size = 32
+    batch_size = 8
     num_workers = 16
 
     n_layers = 2
@@ -20,7 +20,7 @@ if __name__ == "__main__":
     # resolusion = "426:240"
     resolusion = "256:144"
     fps = 30
-    skip_rate = 6
+    skip_rate = 1
     max_len = 16
     n_steps = 1
 

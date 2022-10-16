@@ -3,7 +3,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from .backbone import Backbone
-from .layer import FFN, Layer2D, Layer3D, Squeeze, Upsample, ckpt_forward
+from .layer import FFN, Layer2D, Layer3D, Upsample, ckpt_forward
 
 
 class Decoder(nn.Module):
@@ -25,7 +25,6 @@ class Decoder(nn.Module):
             layers.append(
                 nn.Sequential(*[Layer3D(in_dim, heads) for _ in range(n_layers)])
             )
-
             if i == 0:
                 in_dim += 3
                 out_dim = last_dim
@@ -36,17 +35,12 @@ class Decoder(nn.Module):
 
         self.layers = nn.ModuleList(layers)
         self.convs = nn.ModuleList(convs)
-        self.last_layers = nn.ModuleList(
-            [
-                Layer3D(last_dim, 1, without_channel_attention=True)
-                for _ in range(n_layers)
-            ]
+
+        self.post = nn.Sequential(
+            Layer2D(last_dim + 3, last_dim),
+            Layer3D(last_dim, 1),
         )
-        self.fc = nn.Sequential(
-            FFN(last_dim, 1),
-            Squeeze(dim=1),
-            nn.Conv2d(last_dim, output_dim * n_steps, kernel_size=1),
-        )
+        self.fc = nn.Conv2d(last_dim, output_dim * n_steps, kernel_size=1)
         self.n_steps = n_steps
 
     @ckpt_forward
@@ -54,7 +48,6 @@ class Decoder(nn.Module):
         return self.backbone(x)
 
     def forward(self, video):
-        size = video.shape[-2:]
         feats = [self.avg(video)]
         feats.extend(self.backbone_forward(video))
         x = feats[-1]
@@ -62,10 +55,9 @@ class Decoder(nn.Module):
             x = layer(x)
             x = self.up(x, feat)
             x = conv(x)
-        for layer in self.last_layers:
-            x = layer(x)
-        x = self.up(x, size=size)
-        x = self.fc(x[:, [-1]])
+        x = self.up(x, video)
+        x = self.post(x)
+        x = self.fc(x[:, -1])
         x = x.view(x.shape[0], self.n_steps, -1, x.shape[-2], x.shape[-1])
         return x
 
