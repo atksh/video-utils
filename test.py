@@ -28,6 +28,8 @@ if __name__ == "__main__":
         batch_size,
         num_workers,
         save_dir=cache_dir,
+        resolution=resolusion,
+        fps=fps,
     )
     model = Model(n_layers=n_layers, n_steps=n_steps)
 
