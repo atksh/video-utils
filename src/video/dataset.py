@@ -1,4 +1,6 @@
 import os
+import av
+import io
 import pickle
 import random
 import tempfile
@@ -16,14 +18,14 @@ class VideoDataset(Dataset):
         video_path_or_serialized: str,
         max_len: int,
         n_steps: int,
-        resolution="720:480",
+        resolution: str,
         crf=23,
         fps=30,
-        sc_thre=20,
+        sc_thre=40,
         use_gpu=True,
         gpu_id="2",
-        buf_sec=2,
-        skip_rate=5,
+        buf_sec=1,
+        skip_rate=6,
     ):
         self.max_len = max_len
         self.n_steps = n_steps
@@ -70,13 +72,12 @@ class VideoDataset(Dataset):
 
     def get_frames(self, index):
         video_bytes = self.videos[index]
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, f"video_{index}.mp4")
-            with open(path, "wb") as f:
-                f.write(video_bytes)
-            video = Video(path, pre_compile=False)
-            frames = video.get_all_frames()
-            return frames[:: self.skip_rate]
+        frames = []
+        with io.BytesIO(video_bytes) as f:
+            with av.open(f, "r") as container:
+                for frame in container.decode(video=0):
+                    frames.append(frame.to_image())
+        return frames[:: self.skip_rate]
 
     def __getitem__(self, index):
         frames = self.get_frames(self.to_index[index])

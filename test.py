@@ -8,10 +8,10 @@ from video.net import DataModule, Model
 
 if __name__ == "__main__":
     cache_dir = "cache"
-    path = ["video.mp4"]
+    path = ["video2.mp4"]
     total_batch_size = 32
     batch_size = 4
-    num_workers = 16
+    num_workers = 4
 
     n_layers = 2
     max_epochs = 1000
