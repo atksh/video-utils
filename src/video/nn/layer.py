@@ -317,7 +317,6 @@ class Layer2D(nn.Module):
         super().__init__()
         self.conv = Conv2d(in_dim, 7, 3, groups)
         self.act = nn.GELU()
-        self.mix = nn.Conv2d(in_dim, out_dim, 1, bias=False)
         self.se = SELayer(out_dim)
         self.ln = VideoLayerNorm(out_dim)
         if in_dim != out_dim:
@@ -336,7 +335,6 @@ class Layer2D(nn.Module):
         resid = self.to_video(self.skip(x), bsz)
         x = self.conv(x)
         x = self.act(x)
-        x = self.mix(x)
         x = self.se(x)
         x = self.to_video(x, bsz)
         x = self.ln(x + resid)
