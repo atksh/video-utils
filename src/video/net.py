@@ -1,4 +1,5 @@
 import os
+import hashlib
 
 import pytorch_lightning as pl
 import torch
@@ -15,7 +16,15 @@ torch.set_float32_matmul_precision("medium")
 
 class DataModule(pl.LightningDataModule):
     def __init__(
-        self, video_path_list, max_len, n_steps, batch_size, num_workers, save_dir=None
+        self,
+        video_path_list,
+        max_len,
+        n_steps,
+        batch_size,
+        num_workers,
+        resolution,
+        fps,
+        save_dir=None,
     ):
         super().__init__()
         self.video_path_list = video_path_list
@@ -23,6 +32,8 @@ class DataModule(pl.LightningDataModule):
         self.n_steps = n_steps
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.resolution = resolution
+        self.fps = fps
 
         if save_dir is None:
             save_dir = os.path.join(os.path.dirname(__file__), ".cache")
@@ -35,21 +46,22 @@ class DataModule(pl.LightningDataModule):
         cache_path = self.to_serialized_path(path)
         if os.path.exists(cache_path):
             with open(cache_path, "rb") as f:
-                serialized = f.read()
-            return VideoDataset(
-                serialized,
-                self.max_len,
-                self.n_steps,
-            )
-        else:
-            return VideoDataset(
-                path,
-                self.max_len,
-                self.n_steps,
-            )
+                path = f.read()
+
+        return VideoDataset(
+            path,
+            self.max_len,
+            self.n_steps,
+            resolution=self.resolution,
+            fps=self.fps,
+        )
 
     def to_serialized_path(self, path):
-        return os.path.join(self.save_dir, os.path.basename(path) + ".bin")
+        # calc md5 of path
+        m = hashlib.md5()
+        m.update(path.encode("utf-8"))
+        md5 = m.hexdigest()
+        return os.path.join(self.save_dir, f"{md5}.bin")
 
     def prepare_data(self):
         datasets = []

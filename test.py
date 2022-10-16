@@ -7,15 +7,19 @@ sys.path.append("src")
 from video.net import DataModule, Model
 
 if __name__ == "__main__":
+    cache_dir = "cache"
     path = ["video2.mp4"]
-    max_len = 32
-    n_steps = 8
     total_batch_size = 32
     batch_size = 1
-    num_workers = 4
-    n_layers = 3
+    num_workers = 16
+
+    n_layers = 2
     max_epochs = 1000
-    cache_dir = "cache"
+
+    resolusion = "480:640"
+    fps = 4
+    max_len = 16
+    n_steps = 4
 
     dl = DataModule(
         path,
