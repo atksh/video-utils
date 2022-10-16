@@ -26,6 +26,19 @@ def ckpt_forward(func):
     return wrapper
 
 
+def ckpt_seq_forward(func):
+    def wrapper(x):
+        if x.requires_grad:
+            out = []
+            for i in range(x.shape[0]):
+                out.append(checkpoint(func, x[[i]]))
+            return torch.cat(out, dim=0)
+        else:
+            return func(x)
+
+    return wrapper
+
+
 class VideoToImage(nn.Module):
     def forward(self, x):
         """(batch_size, seq_len, channel, height, width) -> (batch_size * seq_len, channel, height, width)"""
@@ -45,6 +58,7 @@ class VideoLayerNorm(nn.Module):
         self.gamma = nn.Parameter(torch.ones(dim))
         self.beta = nn.Parameter(torch.zeros(dim))
 
+    @ckpt_seq_forward
     def forward(self, x):
         # (batch_size, seq_len, channel, height, width)
         assert is_video(x)
@@ -68,6 +82,7 @@ class SELayer(nn.Module):
             nn.Sigmoid(),
         )
 
+    @ckpt_seq_forward
     def forward(self, x):
         assert is_image(x)
         b, c, _, _ = x.size()
@@ -82,6 +97,7 @@ class SoftmaxDropout(nn.Module):
         self.p = p
         self.dim = dim
 
+    @ckpt_seq_forward
     def forward(self, score):
         if self.training:
             mask = torch.empty_like(score).bernoulli_(self.p).bool()
@@ -211,7 +227,7 @@ class Layer2D(nn.Module):
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
 
-    @ckpt_forward
+    @ckpt_seq_forward
     def forward(self, x):
         assert is_video(x)
         bsz = x.shape[0]
@@ -245,7 +261,7 @@ class Layer3D(nn.Module):
         x = torch.cat([x[:, :-1], f(q)], dim=1)
         return x
 
-    @ckpt_forward
+    @ckpt_seq_forward
     def forward(self, x):
         # x: (batch_size, len, dim, height, width)
         assert is_video(x)
@@ -311,7 +327,7 @@ class UpsampleWithRefrence(Upsample):
         )
         self.high_dim = high_dim
 
-    @ckpt_forward
+    @ckpt_seq_forward
     def to_ref(self, x):
         return self._to_ref(x)
 

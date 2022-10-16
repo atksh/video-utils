@@ -16,8 +16,7 @@ if __name__ == "__main__":
     n_layers = 2
     max_epochs = 1000
 
-    # resolusion = "640:360"
-    resolusion = "426:240"
+    resolusion = "640:360"
     fps = 30
     skip_rate = 6
     max_len = 16
