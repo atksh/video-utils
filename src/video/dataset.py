@@ -1,10 +1,10 @@
-import os
-import av
 import io
+import os
 import pickle
 import random
 import tempfile
 
+import av
 import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
