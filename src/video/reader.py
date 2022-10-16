@@ -36,10 +36,7 @@ class Video:
         self._tempdir = tempfile.TemporaryDirectory()
 
         self.path = os.path.join(self._tempdir.name, f"video.mp4")
-        if pre_compile:
-            self.pre_compile(path)
-        else:
-            self.pre_compile(path, copy=True)
+        self.pre_compile(path, not pre_compile)
 
     @property
     def encoder(self):
@@ -117,7 +114,7 @@ class Video:
             options = self.get_options(**options)
             ffmpeg.input(path).output(self.path, **options).run(overwrite_output=True)
         else:
-            shutil.copy2(path, self.path)
+            shutil.copyfile(path, self.path)
 
     def __del__(self):
         self._tempdir.cleanup()

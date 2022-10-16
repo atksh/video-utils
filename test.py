@@ -11,7 +11,7 @@ if __name__ == "__main__":
     path = ["video2.mp4"]
     total_batch_size = 32
     batch_size = 1
-    num_workers = 16
+    num_workers = 8
 
     n_layers = 2
     max_epochs = 1000
