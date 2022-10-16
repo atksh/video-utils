@@ -10,17 +10,18 @@ if __name__ == "__main__":
     cache_dir = "cache"
     path = ["video2.mp4"]
     total_batch_size = 32
-    batch_size = 1
-    num_workers = 8
+    batch_size = 4
+    num_workers = 16
 
     n_layers = 2
     max_epochs = 1000
 
-    resolusion = "720:480"
+    # resolusion = "640:360"
+    resolusion = "256:144"
     fps = 30
-    max_len = 16
-    n_steps = 4
-    skip_rate = 5
+    skip_rate = 6
+    max_len = 32
+    n_steps = 5
 
     dl = DataModule(
         path,

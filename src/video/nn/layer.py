@@ -26,13 +26,6 @@ def ckpt_forward(func):
     return wrapper
 
 
-def ckpt_einsum(equation, *args):
-    def einsum_func(*args):
-        return torch.einsum(equation, *args)
-
-    return ckpt_forward(einsum_func)(*args)
-
-
 class Squeeze(nn.Module):
     def __init__(self, dim):
         super().__init__()
@@ -85,7 +78,6 @@ class VideoLayerNorm(nn.Module):
         self.gamma = nn.Parameter(torch.ones(dim))
         self.beta = nn.Parameter(torch.zeros(dim))
 
-    @ckpt_forward
     def forward(self, x):
         # (batch_size, seq_len, channel, height, width)
         assert is_video(x)
@@ -120,7 +112,6 @@ class Conv2d(nn.Module):
         else:
             self.out = nn.Identity()
 
-    @ckpt_forward
     def forward(self, x):
         assert is_image(x)
         x = self.pointwise1(x)
@@ -147,7 +138,6 @@ class SELayer(nn.Module):
             nn.Sigmoid(),
         )
 
-    @ckpt_forward
     def forward(self, x):
         assert is_image(x)
         b, c, _, _ = x.size()
@@ -181,10 +171,9 @@ class GroupLinear(nn.Module):
             torch.randn(groups, out_dim // groups, in_dim // groups) * std
         )
 
-    @ckpt_forward
     def forward(self, x):
         x = x.reshape(x.shape[:-1] + (self.groups, -1))
-        x = ckpt_einsum("...gj,...gij->...gi", x, self.W)
+        x = torch.einsum("...gj,...gij->...gi", x, self.W)
         return x.reshape(x.shape[:-2] + (-1,))
 
 
@@ -200,7 +189,6 @@ class ChannelVideoAttention(nn.Module):
         self.V = GroupLinear(dim, dim, heads)
         self.softmax = SoftmaxDropout(p=0.1, dim=-1)
 
-    @ckpt_forward
     def forward(self, q, k, v):
         assert all(is_video(x) for x in (q, k, v))
         height, width = q.shape[-2:]
@@ -213,13 +201,13 @@ class ChannelVideoAttention(nn.Module):
         v = rearrange(v, "b hw m (h d) -> b hw h m d", h=self.heads)
 
         q = q * self.scale
-        attn = ckpt_einsum("bhnd,bhmd->bhnm", q, k)
+        attn = torch.einsum("bhnd,bhmd->bhnm", q, k)
         casual_mask = (
             torch.triu(torch.ones(attn.shape[-2:]), diagonal=1).bool().to(attn.device)
         )
         attn = attn.masked_fill(casual_mask, NEG_INF)
         attn = self.softmax(attn)
-        out = ckpt_einsum("bhnm,bshmd->bshnd", attn, v)
+        out = torch.einsum("bhnm,bshmd->bshnd", attn, v)
         out = rearrange(
             out,
             "b (height width) h n d -> b n (h d) height width",
@@ -242,7 +230,6 @@ class FullVideoAttention(nn.Module):
         self.V = GroupLinear(dim, dim, heads)
         self.softmax = SoftmaxDropout(p=0.1, dim=-1)
 
-    @ckpt_forward
     def forward(self, q, k, v):
         assert all(is_video(x) for x in (q, k, v))
         height, width = q.shape[-2:]
@@ -255,13 +242,13 @@ class FullVideoAttention(nn.Module):
         v = rearrange(v, "b hw m (h d) -> b hw h m d", h=self.heads)
 
         q = q * self.scale
-        attn = ckpt_einsum("bshnd,bshmd->bshnm", q, k)
+        attn = torch.einsum("bshnd,bshmd->bshnm", q, k)
         casual_mask = (
             torch.triu(torch.ones(attn.shape[-2:]), diagonal=1).bool().to(attn.device)
         )
         attn = attn.masked_fill(casual_mask, NEG_INF)
         attn = self.softmax(attn)
-        out = ckpt_einsum("bshnm,bshmd->bshnd", attn, v)
+        out = torch.einsum("bshnm,bshmd->bshnd", attn, v)
         out = rearrange(
             out,
             "b (height width) h n d -> b n (h d) height width",
@@ -301,7 +288,6 @@ class FFN(nn.Module):
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
 
-    @ckpt_forward
     def forward(self, x):
         assert is_video(x)
         b = x.shape[0]
@@ -332,7 +318,6 @@ class Layer2D(nn.Module):
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
 
-    @ckpt_forward
     def forward(self, x):
         assert is_video(x)
         bsz = x.shape[0]
@@ -373,7 +358,6 @@ class Layer3D(nn.Module):
         x = torch.cat([x[:, :-1], q], dim=1)
         return x
 
-    @ckpt_forward
     def forward(self, x):
         # x: (batch_size, len, dim, height, width)
         assert is_video(x)

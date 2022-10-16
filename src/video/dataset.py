@@ -37,8 +37,6 @@ class VideoDataset(Dataset):
             )
             self.videos = video.split()
 
-        self._tempdir = tempfile.TemporaryDirectory()
-
         self.to_tensor = transforms.Compose(
             [
                 transforms.Lambda(lambda x: x.convert("RGB")),
@@ -58,13 +56,6 @@ class VideoDataset(Dataset):
     def serialize(self):
         return pickle.dumps(self.videos)
 
-    @property
-    def dname(self):
-        return self._tempdir.name
-
-    def __del__(self):
-        self._tempdir.cleanup()
-
     def calc_len(self):
         n = 0
         to_index = {}
@@ -79,12 +70,13 @@ class VideoDataset(Dataset):
 
     def get_frames(self, index):
         video_bytes = self.videos[index]
-        path = os.path.join(self.dname, f"video_{index}.mp4")
-        with open(path, "wb") as f:
-            f.write(video_bytes)
-        video = Video(path, pre_compile=False)
-        frames = video.get_all_frames()
-        return frames[:: self.skip_rate]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, f"video_{index}.mp4")
+            with open(path, "wb") as f:
+                f.write(video_bytes)
+            video = Video(path, pre_compile=False)
+            frames = video.get_all_frames()
+            return frames[:: self.skip_rate]
 
     def __getitem__(self, index):
         frames = self.get_frames(self.to_index[index])
