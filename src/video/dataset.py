@@ -83,7 +83,7 @@ class VideoDataset(Dataset):
         with open(path, "wb") as f:
             f.write(video_bytes)
         video = Video(path, pre_compile=False)
-        frames = video.get_frames()
+        frames = video.get_all_frames()
         return frames[:: self.skip_rate]
 
     def __getitem__(self, index):
