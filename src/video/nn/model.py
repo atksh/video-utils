@@ -3,15 +3,13 @@ from torch import nn
 from torch.nn import functional as F
 
 from .backbone import Backbone
-from .layer import FFN, Layer2D, Layer3D, Upsample, ckpt_forward
+from .layer import Layer2D, Layer3D, Upsample, ckpt_forward
 
 
 class Decoder(nn.Module):
     def __init__(self, n_layers=1, output_dim=3, last_dim=32, n_steps=1):
         super().__init__()
-        self.avg = nn.AvgPool3d(
-            kernel_size=(1, 3, 3), padding=(0, 1, 1), stride=(1, 2, 2)
-        )
+        self.avg = nn.AvgPool3d(kernel_size=(1, 2, 2), padding=0, stride=(1, 2, 2))
         self.backbone = Backbone()
         self.feat_dims = [24, 48, 88, 168]
         self.num_heads = [1, 2, 4, 6]
@@ -31,7 +29,9 @@ class Decoder(nn.Module):
             else:
                 out_dim = self.feat_dims[i - 1]
                 in_dim += out_dim
-            convs.append(Layer2D(in_dim=in_dim, out_dim=out_dim))
+            convs.append(
+                nn.Sequential * [Layer2D(in_dim, out_dim) for _ in range(n_layers)]
+            )
 
         self.layers = nn.ModuleList(layers)
         self.convs = nn.ModuleList(convs)

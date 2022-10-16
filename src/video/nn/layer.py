@@ -115,10 +115,6 @@ class ChannelVideoAttention(nn.Module):
 
         q = q * self.scale
         attn = torch.einsum("bhnd,bhmd->bhnm", q, k)
-        casual_mask = (
-            torch.triu(torch.ones(attn.shape[-2:]), diagonal=1).bool().to(attn.device)
-        )
-        attn = attn.masked_fill(casual_mask, NEG_INF)
         attn = self.softmax(attn)
         out = torch.einsum("bhnm,bshmd->bshnd", attn, v)
         out = rearrange(
@@ -156,10 +152,6 @@ class FullVideoAttention(nn.Module):
 
         q = q * self.scale
         attn = torch.einsum("bshnd,bshmd->bshnm", q, k)
-        casual_mask = (
-            torch.triu(torch.ones(attn.shape[-2:]), diagonal=1).bool().to(attn.device)
-        )
-        attn = attn.masked_fill(casual_mask, NEG_INF)
         attn = self.softmax(attn)
         out = torch.einsum("bshnm,bshmd->bshnd", attn, v)
         out = rearrange(
@@ -173,30 +165,26 @@ class FullVideoAttention(nn.Module):
 
 
 class FFN(nn.Module):
-    def __init__(self, dim, groups, s=2, kernel_size=3):
+    def __init__(self, dim, s=2, kernel_size=7):
         super().__init__()
-        assert dim % groups == 0
         padding = (kernel_size - 1) // 2
         self.wi1 = nn.Conv2d(
             dim,
             dim * s,
             kernel_size=kernel_size,
             padding=padding,
-            groups=groups,
         )
         self.wi2 = nn.Conv2d(
             dim,
             dim * s,
             kernel_size=kernel_size,
             padding=padding,
-            groups=groups,
         )
         self.wo = nn.Conv2d(
             dim * s,
             dim,
             kernel_size=kernel_size,
             padding=padding,
-            groups=groups,
         )
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
@@ -218,8 +206,9 @@ class FFN(nn.Module):
 class Layer2D(nn.Module):
     def __init__(self, in_dim, out_dim):
         super().__init__()
-        self.conv = nn.Conv2d(in_dim, out_dim, kernel_size=3, padding=1)
+        self.conv = nn.Conv2d(in_dim, out_dim, kernel_size=7, padding=3)
         self.se = SELayer(out_dim)
+        self.gn = nn.GroupNorm(1, out_dim)
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
 
@@ -229,50 +218,41 @@ class Layer2D(nn.Module):
         x = self.to_image(x)
 
         x = self.conv(x)
+        x = F.gelu(x)
         x = self.se(x)
+        x = self.gn(x)
 
         x = self.to_video(x, bsz)
         return x
 
 
 class Layer3D(nn.Module):
-    def __init__(self, dim, heads, without_channel_attention=False):
+    def __init__(self, dim, heads):
         super().__init__()
-        self.without_channel_attention = without_channel_attention
-        if without_channel_attention:
-            self.channel_attn = None
-            self.ln1 = None
-        else:
-            self.channel_attn = ChannelVideoAttention(dim, heads)
-            self.ln1 = VideoLayerNorm(dim)
-
+        self.channel_attn = ChannelVideoAttention(dim, heads)
         self.full_attn = FullVideoAttention(dim, heads)
-        self.ffn = FFN(dim, heads)
-
+        self.ffn = FFN(dim)
+        self.ln1 = VideoLayerNorm(dim)
         self.ln2 = VideoLayerNorm(dim)
-        self.ln3 = VideoLayerNorm(dim)
 
-    def last_only_forward(self, f, ln, x):
+    def last_only_forward(self, f, x):
         q = x[:, [-1]]
-        q = ln(q + f(q))
-        x = torch.cat([x[:, :-1], q], dim=1)
+        x = torch.cat([x[:, :-1], f(q)], dim=1)
         return x
 
     def forward(self, x):
         # x: (batch_size, len, dim, height, width)
         assert is_video(x)
         resid = x
-        if not self.without_channel_attention:
-            x = self.ln1(x + self.channel_attn(x, x, x))
-
+        x = self.ln1(x + self.channel_attn(x, x, x))
         full_attn = lambda q: self.full_attn(q, x, x)
-        x = self.last_only_forward(full_attn, self.ln2, x)
-        x = self.ln3(x + self.ffn(x) + resid)
+        x = self.last_only_forward(full_attn, x)
+        x = self.ln2(x + self.ffn(x) + resid)
         return x
 
 
 class Upsample(nn.Module):
-    def __init__(self, scale=2, mode="bicubic", align_corners=True):
+    def __init__(self, scale=2, mode="bilinear", align_corners=True):
         super().__init__()
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
