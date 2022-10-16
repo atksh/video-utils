@@ -3,7 +3,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from .backbone import Backbone
-from .layer import Layer2D, Layer3D, Upsample, UpsampleWithRefrence, ckpt_seq_forward
+from .layer import Layer2D, Layer3D, Upsample, UpsampleWithRefrence, ckpt_forward
 
 
 class Decoder(nn.Module):
@@ -42,7 +42,7 @@ class Decoder(nn.Module):
         self.fc = nn.Conv2d(last_dim + 3, output_dim * n_steps, kernel_size=1)
         self.n_steps = n_steps
 
-    @ckpt_seq_forward
+    @ckpt_forward
     def backbone_forward(self, x):
         return self.backbone(x)
 
