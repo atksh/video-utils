@@ -295,6 +295,53 @@ class Upsample(nn.Module):
         return self.to_video(out, bsz)
 
 
+class UpsampleWithRefrence(Upsample):
+    def __init__(self, low_dim, high_dim, scale=2, mode="bilinear", align_corners=True):
+        super().__init__(scale, mode, align_corners)
+        self.to_ref = nn.Conv2d(
+            low_dim, 2 * high_dim, kernel_size=3, padding=1, bias=False
+        )
+        self.high_dim = high_dim
+
+    def forward(self, lowres, highres):
+        assert is_video(lowres) and is_video(highres)
+        bsz = lowres.shape[0]
+        size = highres.shape[-2:]
+        high_dim = highres.shape[2]
+        assert high_dim == self.high_dim, f"{high_dim} != {self.high_dim}"
+
+        lowres = self.to_image(lowres)
+        highres = self.to_image(highres)
+        x = self.interpolate(lowres, size=size)
+        b = x.shape[0]
+        ref = self.to_ref(x)
+        ref = ref.view(b * high_dim, 2, *size)
+        highres = highres.reshape(b * high_dim, 1, *size)
+        out = self.transform(ref, highres)
+        out = out.view(b, high_dim, *size)
+        out = self.to_video(out, bsz)
+        return out
+
+    @staticmethod
+    def clip_xy(ref_xy, img_shape_x: int, img_shape_y: int):
+        ref_x = torch.where(
+            (0 <= ref_xy[:, 0]) & (ref_xy[:, 0] < img_shape_x), ref_xy[:, 0], -1
+        )
+        ref_y = torch.where(
+            (0 <= ref_xy[:, 1]) & (ref_xy[:, 1] < img_shape_y), ref_xy[:, 1], -1
+        )
+        return torch.stack([ref_y, ref_x], dim=0)
+
+    def transform(self, ref_xy, source):
+        # ref_xy: (batch_size, 2, height, width)
+        # source: (batch_size, dim, height, width)
+        ref_x = ref_xy[:, 0].softmax(dim=-1).cumsum(dim=-1)
+        ref_y = ref_xy[:, 1].softmax(dim=-2).cumsum(dim=-2)
+        ref_xy = torch.stack([ref_y, ref_x], dim=-1) * 2 - 1
+        out = F.grid_sample(source, ref_xy, align_corners=True)
+        return out
+
+
 if __name__ == "__main__":
     m = Layer3D(32, 2, 4)
     h, w = (320, 480)

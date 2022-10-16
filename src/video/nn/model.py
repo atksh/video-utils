@@ -3,7 +3,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from .backbone import Backbone
-from .layer import Layer2D, Layer3D, Upsample, ckpt_forward
+from .layer import Layer2D, Layer3D, Upsample, UpsampleWithRefrence, ckpt_forward
 
 
 class Decoder(nn.Module):
@@ -17,23 +17,28 @@ class Decoder(nn.Module):
         self.up = Upsample(2)
         layers = []
         convs = []
+        ups = []
         for i in reversed(range(4)):
             in_dim = self.feat_dims[i]
             heads = self.num_heads[i]
             layers.append(
                 nn.Sequential(*[Layer3D(in_dim, heads) for _ in range(n_layers)])
             )
+            _in_dim = in_dim
             if i == 0:
                 in_dim += 3
                 out_dim = last_dim
             else:
                 out_dim = self.feat_dims[i - 1]
                 in_dim += out_dim
+            ups.append(UpsampleWithRefrence(_in_dim, out_dim if i > 0 else 3))
             convs.append(Layer2D(in_dim=in_dim, out_dim=out_dim))
 
         self.layers = nn.ModuleList(layers)
+        self.ups = nn.ModuleList(ups)
         self.convs = nn.ModuleList(convs)
 
+        self.last_up = UpsampleWithRefrence(last_dim, 3)
         self.post = nn.Sequential(
             Layer2D(last_dim + 3, last_dim),
             Layer3D(last_dim, 1),
@@ -49,11 +54,16 @@ class Decoder(nn.Module):
         feats = [self.avg(video)]
         feats.extend(self.backbone_forward(video))
         x = feats[-1]
-        for layer, conv, feat in zip(self.layers, self.convs, reversed(feats[:-1])):
+        for layer, conv, up, feat in zip(
+            self.layers, self.convs, self.ups, reversed(feats[:-1])
+        ):
             x = layer(x)
+            feat = up(x, feat)
             x = self.up(x, feat)
             x = conv(x)
-        x = self.up(x, video)
+
+        ref = self.last_up(x, video)
+        x = self.up(x, ref)
         x = self.post(x)
         x = self.fc(x[:, -1])
         x = x.view(x.shape[0], self.n_steps, -1, x.shape[-2], x.shape[-1])
