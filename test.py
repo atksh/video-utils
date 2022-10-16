@@ -13,14 +13,14 @@ if __name__ == "__main__":
     batch_size = 2
     num_workers = 16
 
-    n_layers = 2
+    n_layers = 3
     max_epochs = 1000
 
     resolusion = "640:360"
     fps = 30
     skip_rate = 6
     max_len = 16
-    n_steps = 1
+    n_steps = 4
 
     dl = DataModule(
         path,
@@ -46,7 +46,7 @@ if __name__ == "__main__":
         deterministic=False,
         check_val_every_n_epoch=1,
         enable_checkpointing=True,
-        gradient_clip_val=0.5,
+        gradient_clip_val=1.0,
         gradient_clip_algorithm="norm",
     )
     trainer.fit(model=model, datamodule=dl)
