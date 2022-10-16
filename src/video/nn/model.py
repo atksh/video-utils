@@ -30,7 +30,7 @@ class Decoder(nn.Module):
                 out_dim = self.feat_dims[i - 1]
                 in_dim += out_dim
             convs.append(
-                nn.Sequential * [Layer2D(in_dim, out_dim) for _ in range(n_layers)]
+                nn.Sequential(*[Layer2D(in_dim, out_dim) for _ in range(n_layers)])
             )
 
         self.layers = nn.ModuleList(layers)
