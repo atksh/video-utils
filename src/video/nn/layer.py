@@ -248,6 +248,38 @@ class FFN(nn.Module):
         return x
 
 
+class Layer2D(nn.Module):
+    def __init__(self, in_dim, out_dim):
+        super().__init__()
+        self.conv = nn.Conv2d(in_dim, in_dim, kernel_size=3, padding=1)
+        self.act = nn.GELU()
+        self.se = SELayer(in_dim)
+        self.post_ln = VideoLayerNorm(out_dim)
+        if in_dim != out_dim:
+            self.skip = nn.Conv2d(in_dim, out_dim, 1, bias=False)
+        else:
+            self.skip = nn.Identity()
+        self.mix = nn.Conv2d(in_dim, out_dim, 1, bias=False)
+
+        self.to_image = VideoToImage()
+        self.to_video = ImageToVideo()
+
+    def forward(self, x):
+        assert is_video(x)
+        bsz = x.shape[0]
+        resid = self.to_video(self.skip(self.to_image(x)), bsz)
+        x = self.to_image(x)
+
+        x = self.conv(x)
+        x = self.act(x)
+        x = self.se(x)
+        x = self.mix(x)
+
+        x = self.to_video(x, bsz)
+        x = self.post_ln(x + resid)
+        return x
+
+
 class Layer3D(nn.Module):
     def __init__(self, dim, heads, without_channel_attention=False):
         super().__init__()
