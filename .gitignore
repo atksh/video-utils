@@ -132,3 +132,6 @@ dmypy.json
 src/video/version.py
 
 *.mp4
+
+lightning_logs/
+cache/
