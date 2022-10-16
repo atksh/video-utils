@@ -138,6 +138,7 @@ class SELayer(nn.Module):
             nn.Sigmoid(),
         )
 
+    @ckpt_forward
     def forward(self, x):
         assert is_image(x)
         b, c, _, _ = x.size()
@@ -152,6 +153,7 @@ class SoftmaxDropout(nn.Module):
         self.p = p
         self.dim = dim
 
+    @ckpt_forward
     def forward(self, score):
         if self.training:
             mask = torch.empty_like(score).bernoulli_(self.p).bool()
@@ -171,6 +173,7 @@ class GroupLinear(nn.Module):
             torch.randn(groups, out_dim // groups, in_dim // groups) * std
         )
 
+    @ckpt_forward
     def forward(self, x):
         x = x.reshape(x.shape[:-1] + (self.groups, -1))
         x = torch.einsum("...gj,...gij->...gi", x, self.W)
@@ -189,6 +192,7 @@ class ChannelVideoAttention(nn.Module):
         self.V = GroupLinear(dim, dim, heads)
         self.softmax = SoftmaxDropout(p=0.1, dim=-1)
 
+    @ckpt_forward
     def forward(self, q, k, v):
         assert all(is_video(x) for x in (q, k, v))
         height, width = q.shape[-2:]
@@ -230,6 +234,7 @@ class FullVideoAttention(nn.Module):
         self.V = GroupLinear(dim, dim, heads)
         self.softmax = SoftmaxDropout(p=0.1, dim=-1)
 
+    @ckpt_forward
     def forward(self, q, k, v):
         assert all(is_video(x) for x in (q, k, v))
         height, width = q.shape[-2:]
@@ -288,6 +293,7 @@ class FFN(nn.Module):
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
 
+    @ckpt_forward
     def forward(self, x):
         assert is_video(x)
         b = x.shape[0]
@@ -318,6 +324,7 @@ class Layer2D(nn.Module):
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
 
+    @ckpt_forward
     def forward(self, x):
         assert is_video(x)
         bsz = x.shape[0]
@@ -358,6 +365,7 @@ class Layer3D(nn.Module):
         x = torch.cat([x[:, :-1], q], dim=1)
         return x
 
+    @ckpt_forward
     def forward(self, x):
         # x: (batch_size, len, dim, height, width)
         assert is_video(x)
