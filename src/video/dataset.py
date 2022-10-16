@@ -1,9 +1,9 @@
 import os
 import pickle
 import random
+import tempfile
 
 import torch
-from memory_tempfile import MemoryTempfile
 from torch.utils.data import Dataset
 from torchvision import transforms
 
@@ -19,7 +19,7 @@ class VideoDataset(Dataset):
         resolution="720:480",
         crf=23,
         fps=30,
-        sc_thre=40,
+        sc_thre=20,
         use_gpu=True,
         gpu_id="2",
         buf_sec=2,
@@ -28,8 +28,7 @@ class VideoDataset(Dataset):
         self.max_len = max_len
         self.n_steps = n_steps
         self.skip_rate = skip_rate
-        if isinstance(video_path_or_serialized, bytes) and False:
-            print("Loading serialized dataset")
+        if isinstance(video_path_or_serialized, bytes):
             self.videos = self.deserialize(video_path_or_serialized)
         else:
             video_path = video_path_or_serialized
@@ -38,8 +37,7 @@ class VideoDataset(Dataset):
             )
             self.videos = video.split()
 
-        self._tempfile = MemoryTempfile()
-        self._tempdir = self._tempfile.TemporaryDirectory()
+        self._tempdir = tempfile.TemporaryDirectory()
 
         self.to_tensor = transforms.Compose(
             [
@@ -84,7 +82,8 @@ class VideoDataset(Dataset):
         path = os.path.join(self.dname, f"video_{index}.mp4")
         with open(path, "wb") as f:
             f.write(video_bytes)
-        frames = Video(path, pre_compile=False).get_all_frames()
+        video = Video(path, pre_compile=False)
+        frames = video.get_frames()
         return frames[:: self.skip_rate]
 
     def __getitem__(self, index):

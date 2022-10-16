@@ -1,11 +1,11 @@
 import multiprocessing as mp
 import os
 import shutil
+import tempfile
 from typing import List
 
 import av
 import ffmpeg
-from memory_tempfile import MemoryTempfile
 from tqdm import tqdm
 
 MAXINT = 2147483647
@@ -33,14 +33,13 @@ class Video:
         self.buf_sec = buf_sec
         self.gpu_id = gpu_id
 
-        self._tempfile = MemoryTempfile()
-        self._tempdir = self._tempfile.TemporaryDirectory()
+        self._tempdir = tempfile.TemporaryDirectory()
 
         self.path = os.path.join(self._tempdir.name, f"video.mp4")
         if pre_compile:
             self.pre_compile(path)
         else:
-            shutil.copyfile(path, self.path)
+            self.pre_compile(path, copy=True)
 
     @property
     def encoder(self):
@@ -109,17 +108,19 @@ class Video:
         options.update(kwargs)
         return options
 
-    def pre_compile(self, path):
-        options = {
-            "vf": f"yadif=0:-1:1,scale={self.resolution}",
-            "sws_flags": "lanczos+accurate_rnd",
-        }
-        options = self.get_options(**options)
-        ffmpeg.input(path).output(self.path, **options).run(overwrite_output=True)
+    def pre_compile(self, path, copy=False):
+        if not copy:
+            options = {
+                "vf": f"yadif=0:-1:1,scale={self.resolution}",
+                "sws_flags": "lanczos+accurate_rnd",
+            }
+            options = self.get_options(**options)
+            ffmpeg.input(path).output(self.path, **options).run(overwrite_output=True)
+        else:
+            shutil.copy2(path, self.path)
 
     def __del__(self):
         self._tempdir.cleanup()
-        del self._tempfile
 
     def find_keyframe_timestamps(self) -> List[int]:
         """Find indices of keyframes .
@@ -160,7 +161,7 @@ class Video:
         keyframes_indices = self.find_keyframe_timestamps()
 
         out = []
-        with self._tempfile.TemporaryDirectory() as temp_dir:
+        with tempfile.TemporaryDirectory() as temp_dir:
             for i in tqdm(range(len(keyframes_indices) - 1)):
                 start_frame = keyframes_indices[i]
                 end_frame = keyframes_indices[i + 1]

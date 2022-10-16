@@ -16,7 +16,7 @@ if __name__ == "__main__":
     n_layers = 2
     max_epochs = 1000
 
-    resolusion = "480:720"
+    resolusion = "720:480"
     fps = 30
     max_len = 16
     n_steps = 4

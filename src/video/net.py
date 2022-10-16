@@ -1,6 +1,6 @@
+import hashlib
 import os
 import pickle
-import hashlib
 
 import pytorch_lightning as pl
 import torch
@@ -47,7 +47,7 @@ class DataModule(pl.LightningDataModule):
 
     def create_dataset(self, path):
         cache_path = self.to_serialized_path(path)
-        if os.path.exists(cache_path) and False:
+        if os.path.exists(cache_path):
             with open(cache_path, "rb") as f:
                 path = f.read()
 
