@@ -1,10 +1,10 @@
-from functools import partial
-
 import torch
-from einops import rearrange, reduce
+from einops import rearrange
 from torch import nn
 from torch.nn import functional as F
 from torch.utils.checkpoint import checkpoint
+
+NEG_INF = -5000.0
 
 
 def is_video(x):
@@ -98,7 +98,7 @@ class VideoLayerNorm(nn.Module):
 
 
 class Conv2d(nn.Module):
-    def __init__(self, dim, kernel_size, padding, groups):
+    def __init__(self, dim, out_dim, kernel_size, padding, groups):
         super().__init__()
         dim1 = dim // 2
         dim2 = dim - dim1
@@ -113,7 +113,12 @@ class Conv2d(nn.Module):
             dim2, dim2, (1, kernel_size), padding=(0, padding), bias=False, groups=dim2
         )
         self.pointwise1 = nn.Conv2d(dim, dim, 1, bias=False, groups=groups)
+        self.depthwise = nn.Conv2d(dim, dim, 3, padding=1, bias=False, groups=dim)
         self.pointwise2 = nn.Conv2d(dim, dim, 1, bias=False, groups=groups)
+        if dim != out_dim:
+            self.out = nn.Conv2d(dim, out_dim, 1, bias=False)
+        else:
+            self.out = nn.Identity()
 
     @ckpt_forward
     def forward(self, x):
@@ -125,6 +130,8 @@ class Conv2d(nn.Module):
         x2 = self.widthwise(x2)
         x = torch.cat([x1, x2], dim=1)
         x = self.pointwise2(x)
+        x = self.depthwise(x)
+        x = self.out(x)
         return x
 
 
@@ -149,16 +156,18 @@ class SELayer(nn.Module):
         return x * y.expand_as(x)
 
 
-class AttnDropout(nn.Module):
-    def __init__(self, p):
+class SoftmaxDropout(nn.Module):
+    def __init__(self, p, dim):
         super().__init__()
         self.p = p
+        self.dim = dim
 
-    def forward(self, x):
+    def forward(self, score):
         if self.training:
-            return F.dropout(x, p=self.p, training=True) * (1 - self.p)
-        else:
-            return x
+            mask = torch.empty_like(score).bernoulli_(self.p).bool()
+            score = score.masked_fill(mask, NEG_INF / 2)
+        score = F.softmax(score, dim=self.dim)
+        return score
 
 
 class GroupLinear(nn.Module):
@@ -189,7 +198,7 @@ class ChannelVideoAttention(nn.Module):
         self.Q = GroupLinear(dim, dim, heads)
         self.K = GroupLinear(dim, dim, heads)
         self.V = GroupLinear(dim, dim, heads)
-        self.dropout = AttnDropout(0.1)
+        self.softmax = SoftmaxDropout(p=0.1, dim=-1)
 
     @ckpt_forward
     def forward(self, q, k, v):
@@ -208,9 +217,8 @@ class ChannelVideoAttention(nn.Module):
         casual_mask = (
             torch.triu(torch.ones(attn.shape[-2:]), diagonal=1).bool().to(attn.device)
         )
-        attn = attn.masked_fill(casual_mask, -1e9)
-        attn = attn.softmax(dim=-1)
-        attn = self.dropout(attn)
+        attn = attn.masked_fill(casual_mask, NEG_INF)
+        attn = self.softmax(attn)
         out = ckpt_einsum("bhnm,bshmd->bshnd", attn, v)
         out = rearrange(
             out,
@@ -232,7 +240,7 @@ class FullVideoAttention(nn.Module):
         self.Q = GroupLinear(dim, dim, heads)
         self.K = GroupLinear(dim, dim, heads)
         self.V = GroupLinear(dim, dim, heads)
-        self.dropout = AttnDropout(0.1)
+        self.softmax = SoftmaxDropout(p=0.1, dim=-1)
 
     @ckpt_forward
     def forward(self, q, k, v):
@@ -251,9 +259,8 @@ class FullVideoAttention(nn.Module):
         casual_mask = (
             torch.triu(torch.ones(attn.shape[-2:]), diagonal=1).bool().to(attn.device)
         )
-        attn = attn.masked_fill(casual_mask, -1e9)
-        attn = attn.softmax(dim=-1)
-        attn = self.dropout(attn)
+        attn = attn.masked_fill(casual_mask, NEG_INF)
+        attn = self.softmax(attn)
         out = ckpt_einsum("bshnm,bshmd->bshnd", attn, v)
         out = rearrange(
             out,
@@ -266,32 +273,29 @@ class FullVideoAttention(nn.Module):
 
 
 class FFN(nn.Module):
-    def __init__(self, dim, groups, s=2, kernel_size=3):
+    def __init__(self, dim, groups, s=2, kernel_size=7):
         super().__init__()
         assert dim % groups == 0
         padding = (kernel_size - 1) // 2
-        self.wi1 = nn.Conv2d(
+        self.wi1 = Conv2d(
             dim,
             dim * s,
             kernel_size=kernel_size,
             padding=padding,
-            bias=False,
             groups=groups,
         )
-        self.wi2 = nn.Conv2d(
+        self.wi2 = Conv2d(
             dim,
             dim * s,
             kernel_size=kernel_size,
             padding=padding,
-            bias=False,
             groups=groups,
         )
-        self.wo = nn.Conv2d(
+        self.wo = Conv2d(
             dim * s,
             dim,
             kernel_size=kernel_size,
             padding=padding,
-            bias=False,
             groups=groups,
         )
         self.to_image = VideoToImage()
@@ -315,15 +319,15 @@ class FFN(nn.Module):
 class Layer2D(nn.Module):
     def __init__(self, in_dim, out_dim, groups):
         super().__init__()
-        self.conv = Conv2d(in_dim, 7, 3, groups)
+        self.conv = Conv2d(in_dim, in_dim, 7, 3, groups)
         self.act = nn.GELU()
-        self.mix = nn.Conv2d(in_dim, out_dim, 1, bias=False)
-        self.se = SELayer(out_dim)
-        self.ln = VideoLayerNorm(out_dim)
+        self.se = SELayer(in_dim)
+        self.post_ln = VideoLayerNorm(out_dim)
         if in_dim != out_dim:
             self.skip = nn.Conv2d(in_dim, out_dim, 1, bias=False)
         else:
             self.skip = nn.Identity()
+        self.mix = Conv2d(in_dim, out_dim, 7, 3, 1)
 
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
@@ -332,14 +336,16 @@ class Layer2D(nn.Module):
     def forward(self, x):
         assert is_video(x)
         bsz = x.shape[0]
+        resid = self.to_video(self.skip(self.to_image(x)), bsz)
         x = self.to_image(x)
-        resid = self.to_video(self.skip(x), bsz)
+
         x = self.conv(x)
         x = self.act(x)
-        x = self.mix(x)
         x = self.se(x)
+        x = self.mix(x)
+
         x = self.to_video(x, bsz)
-        x = self.ln(x + resid)
+        x = self.post_ln(x + resid)
         return x
 
 
@@ -356,11 +362,10 @@ class Layer3D(nn.Module):
 
         self.full_attn = FullVideoAttention(dim, heads)
         self.ffn = FFN(dim, heads)
+        self.post = Layer2D(dim, dim, heads)
 
         self.ln2 = VideoLayerNorm(dim)
         self.ln3 = VideoLayerNorm(dim)
-
-        self.pre = Layer2D(dim, dim, heads)
 
     def last_only_forward(self, f, ln, x):
         q = x[:, [-1]]
@@ -373,18 +378,18 @@ class Layer3D(nn.Module):
         # x: (batch_size, len, dim, height, width)
         assert is_video(x)
         resid = x
-        x = self.pre(x)
         if not self.without_channel_attention:
             x = self.ln1(x + self.channel_attn(x, x, x))
 
         full_attn = lambda q: self.full_attn(q, x, x)
         x = self.last_only_forward(full_attn, self.ln2, x)
         x = self.ln3(x + self.ffn(x) + resid)
+        x = self.post(x)
         return x
 
 
 class Upsample(nn.Module):
-    def __init__(self, scale=2, mode="bilinear", align_corners=True):
+    def __init__(self, scale=2, mode="bicubic", align_corners=True):
         super().__init__()
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()

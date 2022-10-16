@@ -1,7 +1,9 @@
 import torch
-from backbone import Backbone
-from layer import Layer2D, Layer3D, Upsample, ckpt_forward, FFN, Squeeze
 from torch import nn
+from torch.nn import functional as F
+
+from .backbone import Backbone
+from .layer import FFN, Layer2D, Layer3D, Squeeze, Upsample, ckpt_forward
 
 
 class Decoder(nn.Module):
@@ -68,6 +70,9 @@ class Decoder(nn.Module):
         x = self.fc(x[:, [-1]])
         x = x.view(x.shape[0], self.n_steps, -1, x.shape[-2], x.shape[-1])
         return x
+
+    def loss(self, pred, gt):
+        return F.binary_cross_entropy_with_logits(pred, gt)
 
 
 if __name__ == "__main__":
