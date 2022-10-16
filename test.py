@@ -16,10 +16,11 @@ if __name__ == "__main__":
     n_layers = 2
     max_epochs = 1000
 
-    resolusion = "480:640"
-    fps = 4
+    resolusion = "480:720"
+    fps = 30
     max_len = 16
     n_steps = 4
+    skip_rate = 5
 
     dl = DataModule(
         path,
@@ -30,6 +31,7 @@ if __name__ == "__main__":
         save_dir=cache_dir,
         resolution=resolusion,
         fps=fps,
+        skip_rate=skip_rate,
     )
     model = Model(n_layers=n_layers, n_steps=n_steps)
 

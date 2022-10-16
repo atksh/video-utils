@@ -19,21 +19,24 @@ class VideoDataset(Dataset):
         resolution="720:480",
         crf=23,
         fps=30,
-        sc_thre=20,
+        sc_thre=40,
         use_gpu=True,
         gpu_id="2",
         buf_sec=2,
+        skip_rate=5,
     ):
         self.max_len = max_len
         self.n_steps = n_steps
-        if isinstance(video_path_or_serialized, str):
+        self.skip_rate = skip_rate
+        if isinstance(video_path_or_serialized, bytes) and False:
+            print("Loading serialized dataset")
+            self.videos = self.deserialize(video_path_or_serialized)
+        else:
             video_path = video_path_or_serialized
             video = Video(
                 video_path, resolution, crf, fps, sc_thre, use_gpu, gpu_id, buf_sec
             )
             self.videos = video.split()
-        else:
-            self.videos = self.deserialize(video_path_or_serialized)
 
         self._tempfile = MemoryTempfile()
         self._tempdir = self._tempfile.TemporaryDirectory()
@@ -82,7 +85,7 @@ class VideoDataset(Dataset):
         with open(path, "wb") as f:
             f.write(video_bytes)
         frames = Video(path, pre_compile=False).get_all_frames()
-        return frames
+        return frames[:: self.skip_rate]
 
     def __getitem__(self, index):
         frames = self.get_frames(self.to_index[index])

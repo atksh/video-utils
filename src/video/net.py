@@ -1,4 +1,5 @@
 import os
+import pickle
 import hashlib
 
 import pytorch_lightning as pl
@@ -25,6 +26,7 @@ class DataModule(pl.LightningDataModule):
         resolution,
         fps,
         save_dir=None,
+        skip_rate=1,
     ):
         super().__init__()
         self.video_path_list = video_path_list
@@ -34,6 +36,7 @@ class DataModule(pl.LightningDataModule):
         self.num_workers = num_workers
         self.resolution = resolution
         self.fps = fps
+        self.skip_rate = skip_rate
 
         if save_dir is None:
             save_dir = os.path.join(os.path.dirname(__file__), ".cache")
@@ -44,7 +47,7 @@ class DataModule(pl.LightningDataModule):
 
     def create_dataset(self, path):
         cache_path = self.to_serialized_path(path)
-        if os.path.exists(cache_path):
+        if os.path.exists(cache_path) and False:
             with open(cache_path, "rb") as f:
                 path = f.read()
 
@@ -54,23 +57,26 @@ class DataModule(pl.LightningDataModule):
             self.n_steps,
             resolution=self.resolution,
             fps=self.fps,
+            skip_rate=self.skip_rate,
         )
 
     def to_serialized_path(self, path):
-        # calc md5 of path
+        # calc md5 of path content
         m = hashlib.md5()
-        m.update(path.encode("utf-8"))
+        with open(path, "rb") as f:
+            m.update(f.read())
         md5 = m.hexdigest()
-        return os.path.join(self.save_dir, f"{md5}.bin")
+        return os.path.join(self.save_dir, md5 + ".bin")
 
     def prepare_data(self):
         datasets = []
         for path in tqdm(self.video_path_list):
             ds = self.create_dataset(path)
-            serialized = ds.serialize()
             cache_path = self.to_serialized_path(path)
-            with open(cache_path, "wb") as f:
-                f.write(serialized)
+            if not os.path.exists(cache_path):
+                serialized = ds.serialize()
+                with open(cache_path, "wb") as f:
+                    f.write(serialized)
             datasets.append(ds)
         self.ds = torch.utils.data.ConcatDataset(datasets)
 
