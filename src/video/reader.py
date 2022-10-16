@@ -61,7 +61,7 @@ class Video:
             "b:a": "128k",
             "pix_fmt": "yuv420p",
             "r": f"{self.fps}",
-            "g": f"{self.fps * 140}",
+            "g": f"{self.fps * 30}",
             "keyint_min": f"{self.fps * self.buf_sec}",
             "sc_threshold": f"{self.sc_thre}",
             "preset": f"{self.preset}",

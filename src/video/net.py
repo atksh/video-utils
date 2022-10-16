@@ -4,6 +4,7 @@ import pickle
 
 import pytorch_lightning as pl
 import torch
+from adabelief_pytorch import AdaBelief
 from tqdm import tqdm
 
 from .dataset import VideoDataset
@@ -135,4 +136,6 @@ class Model(pl.LightningModule):
         return loss
 
     def configure_optimizers(self):
-        return torch.optim.AdamW(self.parameters(), lr=1e-4, weight_decay=1e-4)
+        return AdaBelief(
+            self.parameters(), lr=1e-4, weight_decay=1e-5, eps=1e-8, betas=(0.9, 0.98)
+        )

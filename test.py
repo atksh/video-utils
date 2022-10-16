@@ -9,19 +9,20 @@ from video.net import DataModule, Model
 if __name__ == "__main__":
     cache_dir = "cache"
     path = ["video.mp4"]
-    total_batch_size = 32
-    batch_size = 6
-    num_workers = 8
+    total_batch_size = 16
+    batch_size = 16
+    num_workers = 16
 
     n_layers = 2
     max_epochs = 1000
 
     # resolusion = "640:360"
-    resolusion = "426:240"
+    # resolusion = "426:240"
+    resolusion = "256:144"
     fps = 30
     skip_rate = 6
-    max_len = 32
-    n_steps = 5
+    max_len = 16
+    n_steps = 1
 
     dl = DataModule(
         path,
@@ -47,5 +48,7 @@ if __name__ == "__main__":
         deterministic=False,
         check_val_every_n_epoch=1,
         enable_checkpointing=True,
+        gradient_clip_val=0.5,
+        gradient_clip_algorithm="norm",
     )
     trainer.fit(model=model, datamodule=dl)
