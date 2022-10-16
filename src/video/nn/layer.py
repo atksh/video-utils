@@ -165,26 +165,17 @@ class FullVideoAttention(nn.Module):
 
 
 class FFN(nn.Module):
-    def __init__(self, dim, s=2, kernel_size=7):
+    def __init__(self, dim, s=2, kernel_size=3):
         super().__init__()
         padding = (kernel_size - 1) // 2
         self.wi1 = nn.Conv2d(
-            dim,
-            dim * s,
-            kernel_size=kernel_size,
-            padding=padding,
+            dim, dim * s, kernel_size=kernel_size, padding=padding, bias=False
         )
         self.wi2 = nn.Conv2d(
-            dim,
-            dim * s,
-            kernel_size=kernel_size,
-            padding=padding,
+            dim, dim * s, kernel_size=kernel_size, padding=padding, bias=False
         )
         self.wo = nn.Conv2d(
-            dim * s,
-            dim,
-            kernel_size=kernel_size,
-            padding=padding,
+            dim * s, dim, kernel_size=kernel_size, padding=padding, bias=False
         )
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
@@ -206,9 +197,15 @@ class FFN(nn.Module):
 class Layer2D(nn.Module):
     def __init__(self, in_dim, out_dim):
         super().__init__()
-        self.conv = nn.Conv2d(in_dim, out_dim, kernel_size=7, padding=3)
-        self.se = SELayer(out_dim)
-        self.gn = nn.GroupNorm(1, out_dim)
+        self.conv1 = nn.Conv2d(in_dim, out_dim, kernel_size=3, padding=1, bias=False)
+        self.conv2 = nn.Conv2d(
+            in_dim + out_dim, out_dim, kernel_size=3, padding=1, bias=False
+        )
+        self.se1 = SELayer(out_dim)
+        self.gn1 = nn.GroupNorm(1, out_dim)
+        self.se2 = SELayer(out_dim)
+        self.gn2 = nn.GroupNorm(1, out_dim)
+
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
 
@@ -216,11 +213,16 @@ class Layer2D(nn.Module):
         assert is_video(x)
         bsz = x.shape[0]
         x = self.to_image(x)
+        resid = x
 
-        x = self.conv(x)
+        x = self.conv1(x)
         x = F.gelu(x)
-        x = self.se(x)
-        x = self.gn(x)
+        x = self.se1(x)
+        x = self.gn1(x)
+        x = torch.cat([x, resid], dim=1)
+        x = self.conv2(x)
+        x = self.se2(x)
+        x = self.gn2(x)
 
         x = self.to_video(x, bsz)
         return x

@@ -29,9 +29,7 @@ class Decoder(nn.Module):
             else:
                 out_dim = self.feat_dims[i - 1]
                 in_dim += out_dim
-            convs.append(
-                nn.Sequential(*[Layer2D(in_dim, out_dim) for _ in range(n_layers)])
-            )
+            convs.append(Layer2D(in_dim=in_dim, out_dim=out_dim))
 
         self.layers = nn.ModuleList(layers)
         self.convs = nn.ModuleList(convs)
@@ -59,10 +57,11 @@ class Decoder(nn.Module):
         x = self.post(x)
         x = self.fc(x[:, -1])
         x = x.view(x.shape[0], self.n_steps, -1, x.shape[-2], x.shape[-1])
+        x = torch.sigmoid(x)
         return x
 
     def loss(self, pred, gt):
-        return F.binary_cross_entropy_with_logits(pred, gt)
+        return F.l1_loss(pred, gt)
 
 
 if __name__ == "__main__":
