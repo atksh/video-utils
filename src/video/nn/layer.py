@@ -298,7 +298,12 @@ class Upsample(nn.Module):
 class UpsampleWithRefrence(Upsample):
     def __init__(self, low_dim, high_dim, scale=2, mode="bilinear", align_corners=True):
         super().__init__(scale, mode, align_corners)
-        self.to_ref = nn.Conv2d(low_dim, 2 * high_dim, kernel_size=1, bias=False)
+        self.to_ref = nn.Sequential(
+            nn.Conv2d(low_dim, low_dim * 4, kernel_size=1, bias=False),
+            nn.GroupNorm(1, low_dim * 4),
+            nn.GELU(),
+            nn.Conv2d(low_dim * 4, high_dim * 2, kernel_size=1, bias=False),
+        )
         self.high_dim = high_dim
 
     def forward(self, lowres, highres):
