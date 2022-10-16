@@ -130,3 +130,5 @@ dmypy.json
 
 # version.py
 src/video/version.py
+
+*.mp4
