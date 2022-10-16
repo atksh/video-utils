@@ -165,7 +165,7 @@ class FullVideoAttention(nn.Module):
 
 
 class FFN(nn.Module):
-    def __init__(self, dim, s=2, kernel_size=3):
+    def __init__(self, dim, s=2, kernel_size=1):
         super().__init__()
         padding = (kernel_size - 1) // 2
         self.wi1 = nn.Conv2d(
@@ -298,9 +298,7 @@ class Upsample(nn.Module):
 class UpsampleWithRefrence(Upsample):
     def __init__(self, low_dim, high_dim, scale=2, mode="bilinear", align_corners=True):
         super().__init__(scale, mode, align_corners)
-        self.to_ref = nn.Conv2d(
-            low_dim, 2 * high_dim, kernel_size=3, padding=1, bias=False
-        )
+        self.to_ref = nn.Conv2d(low_dim, 2 * high_dim, kernel_size=1, bias=False)
         self.high_dim = high_dim
 
     def forward(self, lowres, highres):
@@ -321,16 +319,6 @@ class UpsampleWithRefrence(Upsample):
         out = out.view(b, high_dim, *size)
         out = self.to_video(out, bsz)
         return out
-
-    @staticmethod
-    def clip_xy(ref_xy, img_shape_x: int, img_shape_y: int):
-        ref_x = torch.where(
-            (0 <= ref_xy[:, 0]) & (ref_xy[:, 0] < img_shape_x), ref_xy[:, 0], -1
-        )
-        ref_y = torch.where(
-            (0 <= ref_xy[:, 1]) & (ref_xy[:, 1] < img_shape_y), ref_xy[:, 1], -1
-        )
-        return torch.stack([ref_y, ref_x], dim=0)
 
     def transform(self, ref_xy, source):
         # ref_xy: (batch_size, 2, height, width)
