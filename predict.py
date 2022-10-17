@@ -15,6 +15,7 @@ from video.dataset import VideoDatasetForInference
 if __name__ == "__main__":
     resolusion = "640:360"
     resolusion = "256:144"
+    batch_size = 4
     fps = 30
     skip_rate = 1
     max_len = 16
@@ -27,7 +28,7 @@ if __name__ == "__main__":
     )
     dataloader = torch.utils.data.DataLoader(
         dataset,
-        batch_size=1,
+        batch_size=batch_size,
         shuffle=False,
         num_workers=2,
     )
@@ -42,10 +43,9 @@ if __name__ == "__main__":
         last_dim=last_dim,
         num_mix=num_mix,
     )
-    model.cpu()
     model.eval()
 
-    trainer = pl.Trainer(accelerator="cpu")
+    trainer = pl.Trainer(accelerator="gpu", devices=[1])
     out = trainer.predict(model, dataloader)
     preds = torch.cat([p[0] for p in out], dim=0)
     golds = torch.cat([p[1] for p in out], dim=0)
