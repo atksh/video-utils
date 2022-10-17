@@ -10,13 +10,14 @@ from .utils import DiscMixLogistic
 
 
 class Decoder(nn.Module):
-    def __init__(self, n_layers=1, last_dim=64, n_steps=1, num_mix=4, num_bits=8):
+    def __init__(self, last_dim=64, n_steps=1, num_mix=4, num_bits=8):
         super().__init__()
         self.avg = nn.AvgPool3d(kernel_size=(1, 2, 2), padding=0, stride=(1, 2, 2))
         self.backbone = Backbone()
         self.backbone_feat_dims = [80, 160, 320, 640]
-        self.front_feat_dims = [128, 192, 288, 384]
-        self.num_heads = [4, 6, 9, 12]
+        self.front_feat_dims = [32, 64, 128, 192]
+        self.num_heads = [1, 2, 4, 6]
+        self.num_layers = [1, 2, 3, 4]
 
         self.n_steps = n_steps
         self.num_mix = num_mix
@@ -45,7 +46,7 @@ class Decoder(nn.Module):
             pre_heads = self.num_heads[i]
             post_heads = self.num_heads[i - 1] if i > 0 else 1
 
-            for _ in range(n_layers):
+            for _ in range(self.num_layers[i]):
                 pre_layers.append(VideoBlock(in_dim, pre_heads))
 
             ups.append(Layer2D(UpsampleWithRefrence(in_dim, additional_dim)))
@@ -53,7 +54,7 @@ class Decoder(nn.Module):
             post_layers.append(
                 Layer2D(ImageBlock(in_dim + 2 * additional_dim, out_dim))
             )
-            for _ in range(n_layers):
+            for _ in range(self.num_layers[i]):
                 post_layers.append(VideoBlock(out_dim, post_heads))
 
             pre_blocks.append(nn.Sequential(*pre_layers))

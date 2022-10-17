@@ -13,7 +13,6 @@ if __name__ == "__main__":
     batch_size = 8
     num_workers = 16
 
-    n_layers = 2
     max_epochs = 1000
 
     resolusion = "640:360"
@@ -36,9 +35,7 @@ if __name__ == "__main__":
         fps=fps,
         skip_rate=skip_rate,
     )
-    model = Model(
-        n_layers=n_layers, n_steps=n_steps, last_dim=last_dim, num_mix=num_mix
-    )
+    model = Model(n_steps=n_steps, last_dim=last_dim, num_mix=num_mix)
 
     trainer = pl.Trainer(
         accelerator="gpu",

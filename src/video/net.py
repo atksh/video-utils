@@ -108,9 +108,9 @@ class DataModule(pl.LightningDataModule):
 
 
 class Model(pl.LightningModule):
-    def __init__(self, n_layers=1, last_dim=32, n_steps=1, num_mix=4, num_bits=8):
+    def __init__(self, last_dim=32, n_steps=1, num_mix=4, num_bits=8):
         super().__init__()
-        self.model = Decoder(n_layers, last_dim, n_steps, num_mix, num_bits)
+        self.model = Decoder(last_dim, n_steps, num_mix, num_bits)
         self.loss = self.model.loss
 
     def forward(self, x):
