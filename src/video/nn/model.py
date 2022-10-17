@@ -1,10 +1,9 @@
 import torch
 from torch import nn
-from torch.nn import functional as F
 
 from .backbone import Backbone
-from .ckpt import ckpt_forward, ckpt_seq_forward
-from .layer import Layer2D, Layer3D, Upsample, UpsampleWithRefrence
+from .ckpt import ckpt_forward
+from .layer import ImageBlock, Layer2D, UpsampleWithRefrence, VideoBlock
 from .utils import DiscMixLogistic
 
 
@@ -13,43 +12,51 @@ class Decoder(nn.Module):
         super().__init__()
         self.avg = nn.AvgPool3d(kernel_size=(1, 2, 2), padding=0, stride=(1, 2, 2))
         self.backbone = Backbone()
-        self.feat_dims = [80, 160, 320, 640]
-        self.num_heads = [2, 4, 8, 16]
+        self.backbone_feat_dims = [80, 160, 320, 640]
+        self.front_feat_dims = [128, 192, 288, 384]
+        self.num_heads = [4, 6, 9, 12]
+
         self.n_steps = n_steps
         self.num_mix = num_mix
         self.num_bits = num_bits
         self.output_dim = 10 * num_mix
 
-        self.up = Upsample(2)
-        layers = []
-        convs = []
-        ups = []
-        for i in reversed(range(4)):
-            in_dim = self.feat_dims[i]
-            heads = self.num_heads[i]
-            layers.append(
-                nn.Sequential(*[Layer3D(in_dim, heads) for _ in range(n_layers)])
-            )
-            _in_dim = in_dim
-            if i == 0:
-                in_dim += 6
-                out_dim = last_dim
-            else:
-                out_dim = self.feat_dims[i - 1]
-                in_dim += out_dim * 2
-            ups.append(UpsampleWithRefrence(_in_dim, out_dim if i > 0 else 3))
-            convs.append(Layer2D(in_dim=in_dim, out_dim=out_dim))
+        self.up = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
 
-        self.layers = nn.ModuleList(layers)
+        pre_blocks = []
+        ups = []
+        post_blocks = []
+        for i in reversed(range(4)):
+            pre_layers = []
+            post_layers = []
+
+            in_dim = self.backbone_feat_dims[i]
+            inner_dim = self.front_feat_dims[i]
+            additional_dim = self.backbone_feat_dims[i - 1] if i > 0 else 3
+            out_dim = last_dim if i == 0 else self.front_feat_dims[i - 1]
+            pre_heads = self.num_heads[i]
+            post_heads = self.num_heads[i - 1] if i > 0 else 1
+
+            pre_layers.append(Layer2D(ImageBlock(in_dim, inner_dim)))
+            for _ in range(n_layers):
+                pre_layers.append(VideoBlock(inner_dim, pre_heads))
+                pre_layers.append(Layer2D(ImageBlock(inner_dim, inner_dim)))
+
+            ups.append(Layer2D(UpsampleWithRefrence(inner_dim, additional_dim)))
+            post_layers.append(Layer2D(ImageBlock(inner_dim + additional_dim, out_dim)))
+            for _ in range(n_layers):
+                post_layers.append(VideoBlock(out_dim, post_heads))
+                post_layers.append(Layer2D(ImageBlock(out_dim, out_dim)))
+
+            pre_blocks.append(nn.Sequential(*pre_layers))
+            post_blocks.append(nn.Sequential(*post_layers))
+
+        self.pre_blocks = nn.ModuleList(pre_blocks)
         self.ups = nn.ModuleList(ups)
-        self.convs = nn.ModuleList(convs)
+        self.post_blocks = nn.ModuleList(post_blocks)
 
         self.last_up = UpsampleWithRefrence(last_dim, 3)
-        self.refine = nn.Sequential(
-            Layer2D(last_dim + 6, last_dim * 2),
-            Layer2D(last_dim * 2, last_dim),
-        )
-        self.fc = nn.Conv2d(last_dim, self.output_dim * self.n_steps, kernel_size=1)
+        self.fc = nn.Conv2d(last_dim + 3, self.output_dim * self.n_steps, kernel_size=1)
 
     @ckpt_forward
     def backbone_forward(self, x):
@@ -59,17 +66,14 @@ class Decoder(nn.Module):
         feats = [self.avg(video)]
         feats.extend(self.backbone_forward(video))
         x = feats[-1]
-        for layer, conv, up, feat in zip(
-            self.layers, self.convs, self.ups, reversed(feats[:-1])
+        for pre, up, post, feat in zip(
+            self.pre_blocks, self.ups, self.post_blocks, reversed(feats[:-1])
         ):
-            x = layer(x)
-            feat = up(x, feat)
-            x = self.up(x, feat)
-            x = conv(x)
+            x = pre(x)
+            x = up(x, feat)
+            x = post(x)
 
-        ref = self.last_up(x, video)
-        x = self.up(x, ref)
-        x = self.refine(x[:, [-1]]).squeeze(1)
+        x = self.last_up(x[:, [-1]], video[:, [-1]]).squeeze(1)
         x = self.fc(x)
         x = x.view(x.shape[0], self.n_steps, -1, x.shape[-2], x.shape[-1])
         out = []
