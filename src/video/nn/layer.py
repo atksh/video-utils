@@ -303,10 +303,12 @@ class VideoBlock(nn.Module):
         self.ffn = Layer2D(FFN(dim))
         self.ln1 = VideoLayerNorm(dim)
         self.ln2 = VideoLayerNorm(dim)
+        self.ln3 = VideoLayerNorm(dim)
 
     def last_only_forward(self, f, x):
         q = x[:, [-1]]
-        x = torch.cat([x[:, :-1], f(q)], dim=1)
+        q = self.ln2(f(q) + q)
+        x = torch.cat([x[:, :-1], q], dim=1)
         return x
 
     def forward(self, x):
@@ -316,5 +318,5 @@ class VideoBlock(nn.Module):
         x = self.ln1(x + self.channel_attn(x, x, x))
         full_attn = lambda q: self.full_attn(q, x, x)
         x = self.last_only_forward(full_attn, x)
-        x = self.ln2(x + self.ffn(x) + resid)
+        x = self.ln3(x + self.ffn(x) + resid)
         return x
