@@ -1,3 +1,4 @@
+from tkinter import Image
 import torch
 from torch import nn
 
@@ -23,6 +24,13 @@ class Decoder(nn.Module):
 
         self.up = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
 
+        feat_blocks = []
+        for i in range(4):
+            in_dim = self.backbone_feat_dims[i]
+            inner_dim = self.front_feat_dims[i]
+            feat_blocks.append(Layer2D(ImageBlock(in_dim, inner_dim)))
+        self.feat_blocks = nn.ModuleList(feat_blocks)
+
         pre_blocks = []
         ups = []
         post_blocks = []
@@ -30,20 +38,19 @@ class Decoder(nn.Module):
             pre_layers = []
             post_layers = []
 
-            in_dim = self.backbone_feat_dims[i]
-            inner_dim = self.front_feat_dims[i]
-            additional_dim = self.backbone_feat_dims[i - 1] if i > 0 else 3
+            in_dim = self.front_feat_dims[i]
+            additional_dim = self.front_feat_dims[i - 1] if i > 0 else 3
             out_dim = last_dim if i == 0 else self.front_feat_dims[i - 1]
             pre_heads = self.num_heads[i]
             post_heads = self.num_heads[i - 1] if i > 0 else 1
 
-            pre_layers.append(Layer2D(ImageBlock(in_dim, inner_dim)))
             for _ in range(n_layers):
-                pre_layers.append(VideoBlock(inner_dim, pre_heads))
-                pre_layers.append(Layer2D(ImageBlock(inner_dim, inner_dim)))
+                pre_layers.append(VideoBlock(in_dim, pre_heads))
+                pre_layers.append(Layer2D(ImageBlock(in_dim, in_dim)))
 
-            ups.append(Layer2D(UpsampleWithRefrence(inner_dim, additional_dim)))
-            post_layers.append(Layer2D(ImageBlock(inner_dim + additional_dim, out_dim)))
+            ups.append(Layer2D(UpsampleWithRefrence(in_dim, additional_dim)))
+
+            post_layers.append(Layer2D(ImageBlock(in_dim + additional_dim, out_dim)))
             for _ in range(n_layers):
                 post_layers.append(VideoBlock(out_dim, post_heads))
                 post_layers.append(Layer2D(ImageBlock(out_dim, out_dim)))
@@ -60,7 +67,8 @@ class Decoder(nn.Module):
 
     @ckpt_forward
     def backbone_forward(self, x):
-        return self.backbone(x)
+        feats = self.backbone(x)
+        return [self.feat_blocks[i](feat) for i, feat in enumerate(feats)]
 
     def forward(self, video):
         feats = [self.avg(video)]
@@ -73,7 +81,7 @@ class Decoder(nn.Module):
             x = up(x, feat)
             x = post(x)
 
-        x = self.last_up(x[:, [-1]], video[:, [-1]]).squeeze(1)
+        x = self.last_up(x[:, -1], video[:, -1])
         x = self.fc(x)
         x = x.view(x.shape[0], self.n_steps, -1, x.shape[-2], x.shape[-1])
         out = []

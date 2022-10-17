@@ -27,10 +27,10 @@ class Layer2D(nn.Module):
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
 
-    def forward(self, x):
-        bsz = x.shape[0]
-        x = self.to_image(x)
-        x = self.module(x)
+    def forward(self, *args):
+        bsz = args[0].shape[0]
+        new_args = [self.to_image(arg) for arg in args]
+        x = self.module(*new_args)
         x = self.to_video(x, bsz)
         return x
 
@@ -147,25 +147,14 @@ class Upsample(nn.Module):
             x, mode=self.mode, align_corners=self.align_corners, **kwargs
         )
 
-    def forward(self, lowres, highres=None, size=None):
-        if size is None:
-            upsampled = self.interpolate(lowres, scale_factor=self.scale)
-        else:
-            upsampled = lowres
+    def forward(self, lowres, highres):
+        upsampled = self.interpolate(lowres, scale_factor=self.scale)
+        h1, w1 = highres.shape[-2:]
         h2, w2 = upsampled.shape[-2:]
-        if highres is None and size is None:
-            out = upsampled
-        elif size is not None:
-            if h2 != size[0] or w2 != size[1]:
-                out = self.interpolate(upsampled, size=size)
-            else:
-                out = upsampled
-        else:
-            h1, w1 = highres.shape[-2:]
-            if h1 != h2 or w1 != w2:
-                size = (h1, w1)
-                upsampled = self.interpolate(upsampled, size=size)
-            out = torch.cat([upsampled, highres], dim=1)
+        if h1 != h2 or w1 != w2:
+            size = (h1, w1)
+            upsampled = self.interpolate(upsampled, size=size)
+        out = torch.cat([upsampled, highres], dim=1)
         return out
 
 
@@ -174,6 +163,7 @@ class UpsampleWithRefrence(Upsample):
         super().__init__(scale, mode, align_corners)
         self.high_dim = high_dim
         self.to_ref = nn.Conv2d(low_dim, 2 * high_dim, kernel_size=1, bias=False)
+        self.up = Upsample(scale, mode, align_corners)
 
     def forward(self, lowres, highres):
         size = highres.shape[-2:]
@@ -187,7 +177,7 @@ class UpsampleWithRefrence(Upsample):
 
         out = self.transform(ref, highres)
         out = out.view(b, high_dim, *size)
-        return super().forward(out, highres)
+        return self.up(lowres, out)
 
     def transform(self, ref_xy, source):
         # ref_xy: (batch_size, 2, height, width)
@@ -222,7 +212,7 @@ class ImageBlock(nn.Module):
         resid = self.shortcut(x)
         x = self.gn1(self.conv(x) + x)
         x = self.gn2(self.ffn(x) + x)
-        x = self.gn3(self.lraspp(x) + x + resid)
+        x = self.gn3(self.lraspp(x) + resid)
         return x
 
 
