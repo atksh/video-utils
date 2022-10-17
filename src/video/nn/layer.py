@@ -232,7 +232,7 @@ class ShortCut(nn.Module):
             self.rem = out_dim - in_dim
             self.shortcut = nn.Conv2d(in_dim, self.rem, kernel_size=1, bias=False)
         elif in_dim > out_dim:
-            self.factor = math.floor(in_dim / out_dim)  # >= 1
+            self.factor = math.ceil(in_dim / out_dim)  # >= 1
             block_size = in_dim // self.factor
             self.rem = out_dim - block_size * self.factor
             if self.rem > 0:
