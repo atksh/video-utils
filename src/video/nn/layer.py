@@ -92,16 +92,14 @@ class FFN(nn.Module):
     def __init__(self, dim, s=2):
         super().__init__()
         self.w = nn.Conv2d(dim, dim * s * 2, kernel_size=1, padding=0, bias=False)
-        self.gn = nn.GroupNorm(s, dim * s)
+        self.se = SELayer(dim * s)
         self.lraspp = LRASPP(dim * s, dim)
-        self.se = SELayer(dim)
 
     def forward(self, x):
         x1, x2 = self.w(x).chunk(2, dim=1)
         x = x1 * F.mish(x2)
-        x = self.gn(x)
-        x = self.lraspp(x)
         x = self.se(x)
+        x = self.lraspp(x)
         return x
 
 
