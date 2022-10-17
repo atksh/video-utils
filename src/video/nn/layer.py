@@ -181,7 +181,7 @@ class UpsampleWithRefrence(Upsample):
 
         out = self.transform(ref, highres)
         out = out.view(b, high_dim, *size)
-        return self.up(lowres, out)
+        return self.up(lowres, torch.cat([out, highres], dim=1))
 
     def transform(self, ref_xy, source):
         # ref_xy: (batch_size, 2, height, width)

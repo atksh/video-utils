@@ -51,7 +51,9 @@ class Decoder(nn.Module):
 
             ups.append(Layer2D(UpsampleWithRefrence(in_dim, additional_dim)))
 
-            post_layers.append(Layer2D(ImageBlock(in_dim + additional_dim, out_dim)))
+            post_layers.append(
+                Layer2D(ImageBlock(in_dim + 2 * additional_dim, out_dim))
+            )
             for _ in range(n_layers):
                 post_layers.append(VideoBlock(out_dim, post_heads))
                 post_layers.append(Layer2D(ImageBlock(out_dim, out_dim)))
@@ -64,7 +66,7 @@ class Decoder(nn.Module):
         self.post_blocks = nn.ModuleList(post_blocks)
 
         self.last_up = UpsampleWithRefrence(last_dim, 3)
-        self.fc = nn.Conv2d(last_dim + 3, self.output_dim * self.n_steps, kernel_size=1)
+        self.fc = nn.Conv2d(last_dim + 6, self.output_dim * self.n_steps, kernel_size=1)
 
     @ckpt_forward
     def backbone_forward(self, x):
