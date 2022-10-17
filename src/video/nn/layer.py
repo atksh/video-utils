@@ -209,13 +209,11 @@ class ImageBlock(nn.Module):
         self.lraspp = LRASPP(in_dim, out_dim)
         self.shortcut1 = ShortCut(in_dim, out_dim)
         self.shortcut2 = ShortCut(in_dim, out_dim)
-        self.se = SELayer(out_dim)
 
     def forward(self, x):
         resid = self.shortcut1(x)
         x = self.gn1(self.conv(x) + x)
         x = self.gn2(self.lraspp(x) + self.shortcut2(x) + resid)
-        x = self.se(x)
         return x
 
 
