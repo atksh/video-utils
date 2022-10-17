@@ -231,7 +231,7 @@ class Layer2D(nn.Module):
         )
 
         dim = max(in_dim, out_dim)
-        self.conv2 = nn.Conv2d(in_dim, dim * 2, kernel_size=1, bias=False)
+        self.conv2 = nn.Conv2d(in_dim, dim * 4, kernel_size=1, bias=False)
         self.conv3 = nn.Conv2d(dim * 2, out_dim, kernel_size=1, bias=False)
         self.se = SELayer(out_dim)
         self.gn2 = nn.GroupNorm(1, out_dim)
