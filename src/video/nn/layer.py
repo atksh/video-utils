@@ -44,7 +44,7 @@ class SELayer(nn.Module):
         intermed_dim = max(dim // reduction, 4)
         self.fc = nn.Sequential(
             nn.Linear(dim, intermed_dim, bias=False),
-            nn.Mish(),
+            nn.SiLU(),
             nn.Linear(intermed_dim, dim, bias=False),
             nn.Sigmoid(),
         )
@@ -62,7 +62,7 @@ class LRASPP(nn.Module):
         self.aspp1 = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, 1, bias=False),
             nn.GroupNorm(1, out_channels),
-            nn.Mish(),
+            nn.SiLU(),
         )
         self.aspp2 = nn.Sequential(
             nn.AdaptiveAvgPool2d(1),
@@ -97,7 +97,7 @@ class FFN(nn.Module):
 
     def forward(self, x):
         x1, x2 = self.w(x).chunk(2, dim=1)
-        x = x1 * F.mish(x2)
+        x = x1 * F.silu(x2)
         x = self.se(x)
         x = self.lraspp(x)
         return x

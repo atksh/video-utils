@@ -10,11 +10,6 @@ from tqdm import tqdm
 from .dataset import VideoDataset
 from .nn.model import Decoder
 
-torch.backends.cuda.matmul.allow_tf32 = True
-torch.backends.cudnn.allow_tf32 = True
-torch.backends.cuda.matmul.allow_fp16_reduced_precision_reduction = True
-torch.set_float32_matmul_precision("medium")
-
 
 class DataModule(pl.LightningDataModule):
     def __init__(
