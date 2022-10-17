@@ -64,9 +64,11 @@ class Decoder(nn.Module):
         self.ups = nn.ModuleList(ups)
         self.post_blocks = nn.ModuleList(post_blocks)
 
-        self.last_up = Layer2D(UpsampleWithRefrence(last_dim, 3))
-        self.refine = VideoBlock(last_dim + 6, 1)
-        self.fc = nn.Conv2d(last_dim + 6, self.output_dim * self.n_steps, kernel_size=1)
+        self.last_up = UpsampleWithRefrence(last_dim, 3)
+        self.fc = nn.Sequential(
+            ImageBlock(last_dim + 6, last_dim + 6),
+            nn.Conv2d(last_dim + 6, self.output_dim * self.n_steps, kernel_size=1),
+        )
 
     @ckpt_forward
     def backbone_forward(self, x):
@@ -84,9 +86,8 @@ class Decoder(nn.Module):
             x = up(x, feat)
             x = post(x)
 
-        x = self.last_up(x, video)
-        x = self.refine(x)
-        x = self.fc(x[:, -1])
+        x = self.last_up(x[:, -1], video[:, -1])
+        x = self.fc(x)
         x = x.view(x.shape[0], self.n_steps, -1, x.shape[-2], x.shape[-1])
         out = []
         for i in range(self.n_steps):

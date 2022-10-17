@@ -222,7 +222,7 @@ def VideoLayerNorm(dim, eps=1e-5):
     return Layer2D(nn.GroupNorm(1, dim, eps=eps))
 
 
-class ConvGRU(nn.Module):
+class _ConvGRU(nn.Module):
     def __init__(self, dim):
         super().__init__()
         self.conv_z = nn.Conv2d(2 * dim, dim, kernel_size=1)
@@ -244,6 +244,10 @@ class ConvGRU(nn.Module):
             out.append(h)
         out = torch.stack(out, dim=1)
         return out
+
+
+def ConvGRU(dim):
+    return torch.jit.script(_ConvGRU(dim))
 
 
 class ChannelVideoAttention(nn.Module):
