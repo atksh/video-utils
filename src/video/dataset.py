@@ -93,3 +93,44 @@ class VideoDataset(Dataset):
         input_frames = frames[: self.max_len]
         target_frames = frames[self.max_len :]
         return input_frames, target_frames
+
+
+class VideoDatasetForInference(Dataset):
+    def __init__(
+        self,
+        path: str,
+        max_len: int,
+        n_steps: int,
+        resolution: str,
+        crf=23,
+        fps=30,
+        sc_thre=40,
+        use_gpu=True,
+        gpu_id="2",
+        buf_sec=1,
+        skip_rate=6,
+    ):
+        self.max_len = max_len
+        self.n_steps = n_steps
+        self.skip_rate = skip_rate
+        self.video = Video(
+            path, resolution, crf, fps, sc_thre, use_gpu, gpu_id, buf_sec
+        )
+
+        self.to_tensor = transforms.Compose(
+            [
+                transforms.Lambda(lambda x: x.convert("RGB")),
+                transforms.ToTensor(),
+            ]
+        )
+        self.frames = self.video.get_all_frames()[:: self.skip_rate]
+
+    def __len__(self):
+        return len(self.frames) - self.max_len - self.n_steps + 1
+
+    def __getitem__(self, index):
+        frames = self.frames[index : index + self.max_len + self.n_steps]
+        frames = torch.stack([self.to_tensor(frame) for frame in frames])
+        input_frames = frames[: self.max_len]
+        target_frames = frames[self.max_len :]
+        return input_frames, target_frames

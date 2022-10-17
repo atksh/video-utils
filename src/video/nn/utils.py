@@ -80,13 +80,18 @@ class DiscMixLogistic:
         return torch.logsumexp(log_probs, dim=1)  # B, H, W
 
     def sample(self, t=1.0):
+        device = self.logit_probs.device
         gumbel = -torch.log(
             -torch.log(
-                torch.Tensor(self.logit_probs.size()).uniform_(1e-5, 1.0 - 1e-5).cuda()
+                torch.Tensor(self.logit_probs.size())
+                .uniform_(1e-5, 1.0 - 1e-5)
+                .to(device)
             )
         )  # B, M, H, W
-        sel = F.one_hot(
-            torch.argmax(self.logit_probs / t + gumbel, 1), self.num_mix, dim=1
+        sel = (
+            F.one_hot(torch.argmax(self.logit_probs / t + gumbel, 1), self.num_mix)
+            .permute(0, 3, 1, 2)
+            .float()
         )  # B, M, H, W
         sel = sel.unsqueeze(1)  # B, 1, M, H, W
 
@@ -97,7 +102,9 @@ class DiscMixLogistic:
 
         # cells from logistic & clip to interval
         # we don't actually round to the nearest 8bit value when sampling
-        u = torch.Tensor(means.size()).uniform_(1e-5, 1.0 - 1e-5).cuda()  # B, 3, H, W
+        u = (
+            torch.Tensor(means.size()).uniform_(1e-5, 1.0 - 1e-5).to(device)
+        )  # B, 3, H, W
         x = means + torch.exp(log_scales) / t * (
             torch.log(u) - torch.log(1.0 - u)
         )  # B, 3, H, W

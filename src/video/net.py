@@ -129,14 +129,15 @@ class Model(pl.LightningModule):
         self.log("val_loss", loss)
         return loss
 
-    def predict_step(self, video, batch_idx):
+    def predict_step(self, batch, batch_idx):
+        video, y = batch
         with torch.inference_mode():
             preds = self.model(video)
-            sampled = torch.stack([p.sample() for p in preds])
-            # [n_steps, batch, channel, height, width]
-        sampled = sampled.permute(1, 0, 2, 3, 4)
-        # [batch, n_steps, channel, height, width]
-        return (sampled * 255).to(torch.uint8)
+            preds = torch.stack([p.mean() for p in preds])
+            preds = preds.permute(1, 0, 2, 3, 4)
+            preds = (preds * 255).to(torch.uint8)
+            y = (y * 255).to(torch.uint8)
+        return preds, y
 
     def configure_optimizers(self):
         return AdaBelief(
