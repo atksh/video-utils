@@ -209,13 +209,14 @@ class ImageBlock(nn.Module):
             groups=in_dim,
         )
         self.lraspp = LRASPP(in_dim, out_dim)
-        self.shortcut = ShortCut(in_dim, out_dim)
+        self.shortcut1 = ShortCut(in_dim, out_dim)
+        self.shortcut2 = ShortCut(in_dim, out_dim)
 
     def forward(self, x):
-        resid = self.shortcut(x)
+        resid = self.shortcut1(x)
         x = self.gn1(self.conv(x) + x)
         x = self.gn2(self.ffn(x) + x)
-        x = self.gn3(self.lraspp(x) + resid)
+        x = self.gn3(self.lraspp(x) + self.shortcut1(x) + resid)
         return x
 
 
