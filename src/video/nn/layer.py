@@ -251,10 +251,9 @@ class Layer2D(nn.Module):
         mid = self.shortcut(x)
         x1, x2 = self.conv2(x).chunk(2, dim=1)
         x = x1 * F.silu(x2)
-        x = self.conv3(x)
-        x = self.gn2(x + mid + resid)
-
+        x = self.conv3(x) + mid
         x = self.se(x)
+        x = self.gn2(x + resid)
         x = self.to_video(x, bsz)
         return x
 
