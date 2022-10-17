@@ -47,7 +47,6 @@ class Decoder(nn.Module):
 
             for _ in range(n_layers):
                 pre_layers.append(VideoBlock(in_dim, pre_heads))
-                pre_layers.append(Layer2D(ImageBlock(in_dim, in_dim)))
 
             ups.append(Layer2D(UpsampleWithRefrence(in_dim, additional_dim)))
 
@@ -56,7 +55,6 @@ class Decoder(nn.Module):
             )
             for _ in range(n_layers):
                 post_layers.append(VideoBlock(out_dim, post_heads))
-                post_layers.append(Layer2D(ImageBlock(out_dim, out_dim)))
 
             pre_blocks.append(nn.Sequential(*pre_layers))
             post_blocks.append(nn.Sequential(*post_layers))

@@ -193,13 +193,11 @@ class UpsampleWithRefrence(Upsample):
 
 
 class ImageBlock(nn.Module):
-    def __init__(self, in_dim, out_dim, kernel_size=7):
+    def __init__(self, in_dim, out_dim, kernel_size=3):
         super().__init__()
         padding = (kernel_size - 1) // 2
         self.gn1 = nn.GroupNorm(1, in_dim)
-        self.gn2 = nn.GroupNorm(1, in_dim)
-        self.gn3 = nn.GroupNorm(1, out_dim)
-        self.ffn = FFN(in_dim)
+        self.gn2 = nn.GroupNorm(1, out_dim)
         self.conv = nn.Conv2d(
             in_dim,
             in_dim,
@@ -215,8 +213,7 @@ class ImageBlock(nn.Module):
     def forward(self, x):
         resid = self.shortcut1(x)
         x = self.gn1(self.conv(x) + x)
-        x = self.gn2(self.ffn(x) + x)
-        x = self.gn3(self.lraspp(x) + self.shortcut1(x) + resid)
+        x = self.gn2(self.lraspp(x) + self.shortcut1(x) + resid)
         return x
 
 
@@ -302,6 +299,7 @@ class FullVideoAttention(nn.Module):
 class VideoBlock(nn.Module):
     def __init__(self, dim, heads):
         super().__init__()
+        self.image = Layer2D(ImageBlock(dim, dim))
         self.channel_attn = ChannelVideoAttention(dim, heads)
         self.full_attn = FullVideoAttention(dim, heads)
         self.ffn = Layer2D(FFN(dim))
@@ -315,6 +313,7 @@ class VideoBlock(nn.Module):
 
     def forward(self, x):
         # x: (batch_size, len, dim, height, width)
+        x = self.image(x)
         resid = x
         x = self.ln1(x + self.channel_attn(x, x, x))
         full_attn = lambda q: self.full_attn(q, x, x)
