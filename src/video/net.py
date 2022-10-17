@@ -133,7 +133,7 @@ class Model(pl.LightningModule):
         video, y = batch
         with torch.inference_mode():
             preds = self.model(video)
-            preds = torch.stack([p.sample() for p in preds])
+            preds = torch.stack([p.mean() for p in preds])
             preds = preds.permute(1, 0, 2, 3, 4)
             preds = (preds * 255).to(torch.uint8)
             y = (y * 255).to(torch.uint8)

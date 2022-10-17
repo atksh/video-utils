@@ -24,7 +24,7 @@ class Decoder(nn.Module):
         self.num_bits = num_bits
         self.output_dim = 10 * num_mix
 
-        self.up = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
+        self.up = nn.Upsample(scale_factor=2, mode="bicubic", align_corners=True)
 
         feat_blocks = []
         for i in range(4):
