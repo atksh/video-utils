@@ -17,7 +17,7 @@ if __name__ == "__main__":
 
     resolusion = "640:360"
     fps = 30
-    skip_rate = 6
+    skip_rate = 3
     max_len = 8
     n_steps = 4
     num_mix = 4
