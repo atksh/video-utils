@@ -15,7 +15,7 @@ from video.dataset import VideoDatasetForInference
 if __name__ == "__main__":
     resolusion = "640:360"
     resolusion = "256:144"
-    batch_size = 4
+    batch_size = 1
     fps = 30
     skip_rate = 1
     max_len = 16
