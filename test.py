@@ -13,7 +13,7 @@ if __name__ == "__main__":
     batch_size = 1
     num_workers = 16
 
-    n_layers = 1
+    n_layers = 3
     max_epochs = 1000
 
     resolusion = "640:360"
@@ -38,7 +38,7 @@ if __name__ == "__main__":
     trainer = pl.Trainer(
         accelerator="gpu",
         devices=1,
-        precision="bf16",
+        precision=16,
         max_epochs=max_epochs,
         log_every_n_steps=1,
         accumulate_grad_batches=total_batch_size // batch_size,
