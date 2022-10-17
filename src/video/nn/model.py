@@ -47,8 +47,8 @@ class Decoder(nn.Module):
     def backbone_forward(self, x):
         return self.backbone(x)
 
-    @staticmethod
-    def inverse_sigmoid(x):
+    @ckpt_forward
+    def inverse_sigmoid(self, x):
         return -torch.log(1 / (x + 1e-8) - 1)
 
     def forward(self, video):
