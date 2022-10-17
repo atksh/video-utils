@@ -225,14 +225,21 @@ class FFN(nn.Module):
 class Layer2D(nn.Module):
     def __init__(self, in_dim, out_dim):
         super().__init__()
-        self.conv1 = nn.Conv2d(in_dim, out_dim, kernel_size=3, padding=1, bias=False)
-        self.conv2 = nn.Conv2d(
-            in_dim + out_dim, out_dim, kernel_size=3, padding=1, bias=False
+        self.gn1 = nn.GroupNorm(1, in_dim)
+        self.conv1 = nn.Conv2d(
+            in_dim, in_dim, kernel_size=3, padding=1, bias=False, groups=in_dim
         )
-        self.se1 = SELayer(out_dim)
-        self.gn1 = nn.GroupNorm(1, out_dim)
-        self.se2 = SELayer(out_dim)
+
+        dim = max(in_dim, out_dim)
+        self.conv2 = nn.Conv2d(in_dim, dim * 2, kernel_size=1, bias=False)
+        self.conv3 = nn.Conv2d(dim * 2, out_dim, kernel_size=1, bias=False)
+        self.se = SELayer(out_dim)
         self.gn2 = nn.GroupNorm(1, out_dim)
+
+        if in_dim != out_dim:
+            self.shortcut = nn.Conv2d(in_dim, out_dim, kernel_size=1, bias=False)
+        else:
+            self.shortcut = nn.Identity()
 
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
@@ -241,17 +248,16 @@ class Layer2D(nn.Module):
         assert is_video(x)
         bsz = x.shape[0]
         x = self.to_image(x)
-        resid = x
+        resid = self.shortcut(x)
 
-        x = self.conv1(x)
-        x = F.gelu(x)
-        x = self.se1(x)
-        x = self.gn1(x)
-        x = torch.cat([x, resid], dim=1)
-        x = self.conv2(x)
-        x = self.se2(x)
-        x = self.gn2(x)
+        x = self.gn1(x + self.conv1(x))
+        mid = x
+        x1, x2 = self.conv2(x).chunk(2, dim=1)
+        x = x1 * F.gelu(x2)
+        x = self.conv3(x)
+        x = self.gn2(x + mid + resid)
 
+        x = self.se(x)
         x = self.to_video(x, bsz)
         return x
 
