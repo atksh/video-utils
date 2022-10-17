@@ -19,7 +19,7 @@ if __name__ == "__main__":
     resolusion = "256:144"
     fps = 30
     skip_rate = 1
-    max_len = 8
+    max_len = 16
     n_steps = 1
     num_mix = 4
     last_dim = 64
