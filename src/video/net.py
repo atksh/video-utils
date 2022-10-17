@@ -129,8 +129,8 @@ class Model(pl.LightningModule):
         self.log("val_loss", loss)
         return loss
 
-    def predict_step(self, video, batch_idx):
-        assert video.ndim == 5
+    def predict_step(self, batch, batch_idx):
+        video, _ = batch
         with torch.inference_mode():
             preds = self.model(video)
             sampled = torch.stack([p.sample() for p in preds])
