@@ -134,6 +134,9 @@ class Model(pl.LightningModule):
         with torch.inference_mode():
             preds = self.model(video)
             sampled = torch.stack([p.sample() for p in preds])
+            # [n_steps, batch, channel, height, width]
+        sampled = sampled.permute(1, 0, 2, 3, 4)
+        # [batch, n_steps, channel, height, width]
         return (sampled * 255).to(torch.uint8)
 
     def configure_optimizers(self):
