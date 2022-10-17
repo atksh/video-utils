@@ -10,7 +10,7 @@ if __name__ == "__main__":
     cache_dir = "cache"
     path = ["video.mp4"]
     total_batch_size = 32
-    batch_size = 1
+    batch_size = 8
     num_workers = 16
 
     n_layers = 3
@@ -22,6 +22,8 @@ if __name__ == "__main__":
     skip_rate = 1
     max_len = 8
     n_steps = 1
+    num_mix = 10
+    last_dim = 128
 
     dl = DataModule(
         path,
@@ -34,7 +36,9 @@ if __name__ == "__main__":
         fps=fps,
         skip_rate=skip_rate,
     )
-    model = Model(n_layers=n_layers, n_steps=n_steps)
+    model = Model(
+        n_layers=n_layers, n_steps=n_steps, last_dim=last_dim, num_mix=num_mix
+    )
 
     trainer = pl.Trainer(
         accelerator="gpu",
