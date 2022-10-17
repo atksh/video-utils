@@ -13,7 +13,7 @@ if __name__ == "__main__":
     batch_size = 1
     num_workers = 16
 
-    n_layers = 3
+    n_layers = 2
     max_epochs = 1000
 
     resolusion = "640:360"
