@@ -342,8 +342,8 @@ class VideoBlock(nn.Module):
         # x: (batch_size, len, dim, height, width)
         x = self.image(x)
         resid = x
-        x = self.ln1(x + self.channel_attn(x, x, x))
-        x = self.ln2(x + self.conv_gru(x))
+        x = self.ln1(x + self.conv_gru(x))
+        x = self.ln2(x + self.channel_attn(x, x, x))
         full_attn = lambda q: self.full_attn(q, x, x)
         x = self.last_only_forward(full_attn, x)
         x = self.ln4(x + self.ffn(x) + resid)
