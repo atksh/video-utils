@@ -43,6 +43,10 @@ class Decoder(nn.Module):
         self.fc = nn.Conv2d(last_dim, output_dim * n_steps, kernel_size=1)
         self.n_steps = n_steps
 
+    def clamp(self, x):
+        y = torch.clamp(x, 0, 1)
+        return y.detach() + x - x.detach()
+
     @ckpt_forward
     def backbone_forward(self, x):
         return self.backbone(x)
@@ -64,7 +68,7 @@ class Decoder(nn.Module):
         x = self.refine(x[:, [-1]]).squeeze(1)
         x = self.fc(x)
         x = x.view(x.shape[0], self.n_steps, -1, x.shape[-2], x.shape[-1])
-        x = torch.sigmoid(x)
+        x = self.clamp(x)
         return x
 
     def loss(self, pred, gt):
