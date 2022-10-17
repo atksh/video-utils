@@ -39,7 +39,8 @@ class Decoder(nn.Module):
         self.convs = nn.ModuleList(convs)
 
         self.last_up = UpsampleWithRefrence(last_dim, 3)
-        self.fc = nn.Conv2d(last_dim + 6, output_dim * n_steps, kernel_size=1)
+        self.refine = Layer2D(last_dim + 6, last_dim)
+        self.fc = nn.Conv2d(last_dim, output_dim * n_steps, kernel_size=1)
         self.n_steps = n_steps
 
     @ckpt_forward
@@ -60,7 +61,8 @@ class Decoder(nn.Module):
 
         ref = self.last_up(x, video)
         x = self.up(x, ref)
-        x = self.fc(x[:, -1])
+        x = self.refine(x[:, [-1]]).squeeze(1)
+        x = self.fc(x)
         x = x.view(x.shape[0], self.n_steps, -1, x.shape[-2], x.shape[-1])
         x = torch.sigmoid(x)
         return x
