@@ -5,6 +5,8 @@ from einops import rearrange
 from torch import nn
 from torch.nn import functional as F
 
+from .ckpt import ckpt_forward
+
 NEG_INF = -5000.0
 
 
@@ -47,6 +49,7 @@ class SELayer(nn.Module):
             nn.Sigmoid(),
         )
 
+    @ckpt_forward
     def forward(self, x):
         b, c, _, _ = x.size()
         y = self.avg_pool(x).view(b, c)
@@ -68,6 +71,7 @@ class LRASPP(nn.Module):
             nn.Sigmoid(),
         )
 
+    @ckpt_forward
     def forward(self, x):
         return self.aspp1(x) * self.aspp2(x)
 
