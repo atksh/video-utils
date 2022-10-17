@@ -341,7 +341,6 @@ class VideoBlock(nn.Module):
         x = torch.cat([x[:, :-1], q], dim=1)
         return x
 
-    @ckpt_forward
     def forward(self, x):
         # x: (batch_size, len, dim, height, width)
         x = self.image(x)
