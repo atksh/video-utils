@@ -212,6 +212,7 @@ class ImageBlock(nn.Module):
         self.lraspp = LRASPP(in_dim, out_dim)
         self.shortcut = ShortCut(in_dim, out_dim)
 
+    @ckpt_forward
     def forward(self, x):
         resid = self.shortcut(x)
         x = self.conv(x)
@@ -317,6 +318,7 @@ class VideoBlock(nn.Module):
         x = torch.cat([x[:, :-1], q], dim=1)
         return x
 
+    @ckpt_forward
     def forward(self, x):
         # x: (batch_size, len, dim, height, width)
         x = self.image(x)
