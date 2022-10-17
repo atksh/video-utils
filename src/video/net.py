@@ -138,8 +138,8 @@ class Model(pl.LightningModule):
     def configure_optimizers(self):
         return AdaBelief(
             self.parameters(),
-            lr=4e-5,
-            weight_decay=1e-6,
+            lr=4e-4,
+            weight_decay=1e-4,
             eps=1e-12,
             print_change_log=False,
         )
