@@ -3,7 +3,8 @@ from torch import nn
 from torch.nn import functional as F
 
 from .backbone import Backbone
-from .layer import Layer2D, Layer3D, Upsample, UpsampleWithRefrence, ckpt_forward
+from .ckpt import ckpt_forward, ckpt_seq_forward
+from .layer import Layer2D, Layer3D, Upsample, UpsampleWithRefrence
 from .utils import DiscMixLogistic
 
 

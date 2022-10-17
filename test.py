@@ -22,7 +22,7 @@ if __name__ == "__main__":
     skip_rate = 1
     max_len = 8
     n_steps = 1
-    num_mix = 10
+    num_mix = 8
     last_dim = 128
 
     dl = DataModule(
