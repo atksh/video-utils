@@ -29,7 +29,6 @@ class Layer2D(nn.Module):
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
 
-    @ckpt_forward
     def forward(self, *args):
         bsz = args[0].shape[0]
         new_args = [self.to_image(arg) for arg in args]
@@ -50,7 +49,6 @@ class SELayer(nn.Module):
             nn.Sigmoid(),
         )
 
-    @ckpt_forward
     def forward(self, x):
         b, c, _, _ = x.size()
         y = self.avg_pool(x).view(b, c)
@@ -72,7 +70,6 @@ class LRASPP(nn.Module):
             nn.Sigmoid(),
         )
 
-    @ckpt_forward
     def forward(self, x):
         return self.aspp1(x) * self.aspp2(x)
 
@@ -83,7 +80,6 @@ class SoftmaxDropout(nn.Module):
         self.p = p
         self.dim = dim
 
-    @ckpt_forward
     def forward(self, score):
         if self.training:
             mask = torch.empty_like(score).bernoulli_(self.p).bool()
@@ -99,7 +95,6 @@ class FFN(nn.Module):
         self.se = SELayer(dim * s)
         self.lraspp = LRASPP(dim * s, dim)
 
-    @ckpt_forward
     def forward(self, x):
         x1, x2 = self.w(x).chunk(2, dim=1)
         x = x1 * F.silu(x2)
@@ -213,7 +208,6 @@ class ImageBlock(nn.Module):
         self.lraspp = LRASPP(in_dim, out_dim)
         self.shortcut = ShortCut(in_dim, out_dim)
 
-    @ckpt_forward
     def forward(self, x):
         resid = self.shortcut(x)
         x = self.conv(x)
@@ -240,7 +234,6 @@ class ChannelVideoAttention(nn.Module):
         self.V = nn.Linear(dim, dim, bias=False)
         self.softmax = SoftmaxDropout(p=0.1, dim=-1)
 
-    @ckpt_forward
     def forward(self, q, k, v):
         height, width = q.shape[-2:]
         q = self.Q(q.mean(dim=[-1, -2]))  # (batch_size, len_s, dim)
@@ -277,7 +270,6 @@ class FullVideoAttention(nn.Module):
         self.V = nn.Linear(dim, dim, bias=False)
         self.softmax = SoftmaxDropout(p=0.1, dim=-1)
 
-    @ckpt_forward
     def forward(self, q, k, v):
         height, width = q.shape[-2:]
         q = self.Q(rearrange(q, "b m c h w -> b (h w) m c"))
@@ -319,7 +311,6 @@ class VideoBlock(nn.Module):
         x = torch.cat([x[:, :-1], q], dim=1)
         return x
 
-    @ckpt_forward
     def forward(self, x):
         # x: (batch_size, len, dim, height, width)
         x = self.image(x)
