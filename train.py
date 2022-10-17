@@ -15,12 +15,12 @@ if __name__ == "__main__":
 
     max_epochs = 1000
 
-    resolusion = "320:180"
+    resolution = "256:144"
     fps = 30
     skip_rate = 1
     max_len = 16
-    n_steps = 3
-    num_mix = 3
+    n_steps = 4
+    num_mix = 4
     last_dim = 64
 
     dl = DataModule(
@@ -30,7 +30,7 @@ if __name__ == "__main__":
         batch_size,
         num_workers,
         save_dir=cache_dir,
-        resolution=resolusion,
+        resolution=resolution,
         fps=fps,
         skip_rate=skip_rate,
     )

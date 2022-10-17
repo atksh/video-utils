@@ -13,17 +13,17 @@ from video.net import Model
 from video.dataset import VideoDatasetForInference
 
 if __name__ == "__main__":
-    resolusion = "320:180"
+    resolution = "256:144"
     batch_size = 1
     fps = 30
     skip_rate = 1
     max_len = 16
-    n_steps = 3
-    num_mix = 3
+    n_steps = 4
+    num_mix = 4
     last_dim = 64
 
     dataset = VideoDatasetForInference(
-        "video2.mp4", max_len, n_steps, resolusion, fps=fps, skip_rate=skip_rate
+        "video2.mp4", max_len, n_steps, resolution, fps=fps, skip_rate=skip_rate
     )
     dataloader = torch.utils.data.DataLoader(
         dataset,
