@@ -358,7 +358,19 @@ class UpsampleWithRefrence(Upsample):
         out = torch.cat([out, highres], dim=1)
         out = self.to_video(out, bsz)
         return out
-1
+
+    def transform(self, ref_xy, source):
+        # ref_xy: (batch_size, 2, height, width)
+        # source: (batch_size, dim, height, width)
+        ref_x = ref_xy[:, 0].softmax(dim=-1).cumsum(dim=-1)
+        ref_y = ref_xy[:, 1].softmax(dim=-2).cumsum(dim=-2)
+        ref_xy = torch.stack([ref_y, ref_x], dim=-1) * 2 - 1
+        out = F.grid_sample(source, ref_xy, align_corners=True)
+        return out
+
+
+if __name__ == "__main__":
+    m = Layer3D(32, 2, 4)
     h, w = (320, 480)
     x = torch.randn(1, 10, 32, h, w)
     # y = m(x[:, -5:], x, x)
