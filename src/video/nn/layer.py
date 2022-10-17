@@ -215,7 +215,7 @@ class FFN(nn.Module):
 
         x1 = self.wi1(x)
         x2 = self.wi2(x)
-        x = x1 * F.gelu(x2)
+        x = x1 * F.silu(x2)
 
         x = self.wo(x)
         x = self.to_video(x, b)
@@ -253,7 +253,7 @@ class Layer2D(nn.Module):
         x = self.gn1(x + self.conv1(x))
         mid = self.shortcut(x)
         x1, x2 = self.conv2(x).chunk(2, dim=1)
-        x = x1 * F.gelu(x2)
+        x = x1 * F.silu(x2)
         x = self.conv3(x)
         x = self.gn2(x + mid + resid)
 
@@ -334,7 +334,7 @@ class UpsampleWithRefrence(Upsample):
         super().__init__(scale, mode, align_corners)
         self._to_ref = nn.Sequential(
             nn.Conv2d(low_dim, low_dim * 2, kernel_size=1),
-            nn.GELU(),
+            nn.SiLU(),
             nn.GroupNorm(2, low_dim * 2),
             SELayer(low_dim * 2),
             nn.Conv2d(low_dim * 2, high_dim * 2, kernel_size=1, bias=False),
