@@ -6,7 +6,7 @@ class Backbone(nn.Module):
     def __init__(self):
         super().__init__()
         m = timm.create_model(
-            "edgenext_xx_small", pretrained=False, num_classes=0, global_pool=""
+            "convnext_nano", pretrained=False, num_classes=0, global_pool=""
         )
 
         blocks = [m.stem] + [m.stages[i] for i in range(4)]
