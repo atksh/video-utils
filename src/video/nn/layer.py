@@ -197,18 +197,23 @@ class ImageBlock(nn.Module):
         self.gn = nn.GroupNorm(1, out_dim)
         self.conv = nn.Conv2d(
             in_dim,
-            in_dim,
+            in_dim * 4,
             kernel_size=kernel_size,
             padding=padding,
             bias=False,
             groups=in_dim,
         )
+        self.fc = nn.Conv2d(in_dim * 4, out_dim, kernel_size=1, bias=False)
+        self.se = SELayer(out_dim)
         self.lraspp = LRASPP(in_dim, out_dim)
         self.shortcut = ShortCut(in_dim, out_dim)
 
     def forward(self, x):
         resid = self.shortcut(x)
         x = self.conv(x)
+        x = F.silu(x)
+        x = self.fc(x)
+        x = self.se(x)
         x = self.gn(self.lraspp(x) + resid)
         return x
 
@@ -320,16 +325,18 @@ class VideoBlock(nn.Module):
     def __init__(self, dim, heads):
         super().__init__()
         self.image = Layer2D(ImageBlock(dim, dim))
+        self.conv_gru = ConvGRU(dim)
         self.channel_attn = ChannelVideoAttention(dim, heads)
         self.full_attn = FullVideoAttention(dim, heads)
         self.ffn = Layer2D(FFN(dim))
         self.ln1 = VideoLayerNorm(dim)
         self.ln2 = VideoLayerNorm(dim)
         self.ln3 = VideoLayerNorm(dim)
+        self.ln4 = VideoLayerNorm(dim)
 
-    def last_only_forward(self, f, x):
+    def last_only_forward(self, f, ln, x):
         q = x[:, [-1]]
-        q = self.ln2(f(q) + q)
+        q = ln(f(q) + q)
         x = torch.cat([x[:, :-1], q], dim=1)
         return x
 
@@ -337,8 +344,9 @@ class VideoBlock(nn.Module):
         # x: (batch_size, len, dim, height, width)
         x = self.image(x)
         resid = x
-        x = self.ln1(x + self.channel_attn(x, x, x))
+        x = self.ln1(x + self.conv_gru(x))
+        x = self.ln2(x + self.channel_attn(x, x, x))
         full_attn = lambda q: self.full_attn(q, x, x)
-        x = self.last_only_forward(full_attn, x)
-        x = self.ln3(x + self.ffn(x) + resid)
+        x = self.last_only_forward(full_attn, self.ln3, x)
+        x = self.ln4(x + self.ffn(x) + resid)
         return x
