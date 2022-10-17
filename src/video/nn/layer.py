@@ -29,6 +29,7 @@ class Layer2D(nn.Module):
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
 
+    @ckpt_forward
     def forward(self, *args):
         bsz = args[0].shape[0]
         new_args = [self.to_image(arg) for arg in args]
