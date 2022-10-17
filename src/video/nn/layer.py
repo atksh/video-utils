@@ -203,8 +203,8 @@ class ImageBlock(nn.Module):
             bias=False,
             groups=in_dim,
         )
-        self.fc = nn.Conv2d(in_dim * 4, out_dim, kernel_size=1, bias=False)
-        self.se = SELayer(out_dim)
+        self.fc = nn.Conv2d(in_dim * 4, in_dim, kernel_size=1, bias=False)
+        self.se = SELayer(in_dim)
         self.lraspp = LRASPP(in_dim, out_dim)
         self.shortcut = ShortCut(in_dim, out_dim)
 
