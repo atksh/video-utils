@@ -222,7 +222,7 @@ def VideoLayerNorm(dim, eps=1e-5):
     return Layer2D(nn.GroupNorm(1, dim, eps=eps))
 
 
-class _ConvGRU(nn.Module):
+class ConvGRU(nn.Module):
     def __init__(self, dim):
         super().__init__()
         self.conv_z = nn.Conv2d(2 * dim, dim, kernel_size=1)
@@ -244,10 +244,6 @@ class _ConvGRU(nn.Module):
             out.append(h)
         out = torch.stack(out, dim=1)
         return out
-
-
-def ConvGRU(dim):
-    return torch.jit.script(_ConvGRU(dim))
 
 
 class ChannelVideoAttention(nn.Module):
@@ -326,18 +322,16 @@ class VideoBlock(nn.Module):
     def __init__(self, dim, heads):
         super().__init__()
         self.image = Layer2D(ImageBlock(dim, dim))
-        self.conv_gru = ConvGRU(dim)
         self.channel_attn = ChannelVideoAttention(dim, heads)
         self.full_attn = FullVideoAttention(dim, heads)
         self.ffn = Layer2D(FFN(dim))
         self.ln1 = VideoLayerNorm(dim)
         self.ln2 = VideoLayerNorm(dim)
         self.ln3 = VideoLayerNorm(dim)
-        self.ln4 = VideoLayerNorm(dim)
 
     def last_only_forward(self, f, x):
         q = x[:, [-1]]
-        q = self.ln3(f(q) + q)
+        q = self.ln2(f(q) + q)
         x = torch.cat([x[:, :-1], q], dim=1)
         return x
 
@@ -346,8 +340,7 @@ class VideoBlock(nn.Module):
         x = self.image(x)
         resid = x
         x = self.ln1(x + self.conv_gru(x))
-        x = self.ln2(x + self.channel_attn(x, x, x))
         full_attn = lambda q: self.full_attn(q, x, x)
         x = self.last_only_forward(full_attn, x)
-        x = self.ln4(x + self.ffn(x) + resid)
+        x = self.ln3(x + self.ffn(x) + resid)
         return x
