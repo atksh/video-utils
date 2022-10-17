@@ -194,7 +194,7 @@ class FullVideoAttention(nn.Module):
 
 
 class FFN(nn.Module):
-    def __init__(self, dim, s=2, kernel_size=3):
+    def __init__(self, dim, s=2, kernel_size=1):
         super().__init__()
         padding = (kernel_size - 1) // 2
         self.wi = nn.Conv2d(
