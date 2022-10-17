@@ -47,11 +47,6 @@ class Decoder(nn.Module):
     def backbone_forward(self, x):
         return self.backbone(x)
 
-    @staticmethod
-    def soft_clamp(x, lb, ub):
-        y = torch.clamp(x, lb, ub)
-        return y.detach() - x.detach() + x
-
     def forward(self, video):
         feats = [self.avg(video)]
         feats.extend(self.backbone_forward(video))
@@ -69,7 +64,7 @@ class Decoder(nn.Module):
         x = self.refine(x[:, [-1]]).squeeze(1)
         x = self.fc(x)
         x = x.view(x.shape[0], self.n_steps, -1, x.shape[-2], x.shape[-1])
-        x = self.soft_clamp(x, 0, 1)
+        x = x.sigmoid()
         return x
 
     def loss(self, pred, gt):
