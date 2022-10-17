@@ -226,26 +226,33 @@ class ShortCut(nn.Module):
         self.in_dim = in_dim
         self.out_dim = out_dim
         self.factor = None
+        self.rem = None
 
         if in_dim < out_dim:
-            rem = out_dim - in_dim
-            self.shortcut = nn.Conv2d(in_dim, rem, kernel_size=1, bias=False)
+            self.rem = out_dim - in_dim
+            self.shortcut = nn.Conv2d(in_dim, self.rem, kernel_size=1, bias=False)
         elif in_dim > out_dim:
-            self.factor = math.floor(in_dim / out_dim)  # >= 1
-            rem = out_dim - in_dim // self.factor
-            self.shortcut = nn.Conv2d(in_dim, rem, kernel_size=1, bias=False)
+            self.factor = math.ceil(in_dim / out_dim)  # >= 1
+            self.rem = out_dim - in_dim // self.factor
+            if self.rem > 0:
+                self.shortcut = nn.Conv2d(in_dim, self.rem, kernel_size=1, bias=False)
 
     def forward(self, x):
         assert is_image(x)
         if self.in_dim == self.out_dim:
-            return x
+            pass
         elif self.in_dim < self.out_dim:
-            return torch.cat([x, self.shortcut(x)], dim=1)
+            x = torch.cat([x, self.shortcut(x)], dim=1)
         else:
-            b, _, h, w = x.shape
-            y = x.view(b, -1, self.factor, h, w).mean(dim=2)
-            z = self.shortcut(x)
-            return torch.cat([y, z], dim=1)
+            b, c, h, w = x.shape
+            y = x[:, : c - self.rem]
+            y = y.view(b, self.factor, -1, h, w).mean(dim=1)
+            if self.rem > 0:
+                x = torch.cat([y, self.shortcut(x)], dim=1)
+            else:
+                x = y
+        assert x.shape[1] == self.out_dim, f"{x.shape[1]} != {self.out_dim}"
+        return x
 
 
 class Layer2D(nn.Module):
@@ -276,6 +283,7 @@ class Layer2D(nn.Module):
 
         x = self.gn1(x + self.conv1(x))
         mid = self.shortcut2(x)
+        print(x.shape, mid.shape)
         x1, x2 = self.conv2(x).chunk(2, dim=1)
         x = x1 * F.silu(x2)
         x = self.conv3(x) + mid
