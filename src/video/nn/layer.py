@@ -5,6 +5,8 @@ from einops import rearrange
 from torch import nn
 from torch.nn import functional as F
 
+from .ckpt import ckpt_forward
+
 NEG_INF = -5000.0
 
 
@@ -47,6 +49,7 @@ class SELayer(nn.Module):
             nn.Sigmoid(),
         )
 
+    @ckpt_forward
     def forward(self, x):
         b, c, _, _ = x.size()
         y = self.avg_pool(x).view(b, c)
@@ -68,6 +71,7 @@ class LRASPP(nn.Module):
             nn.Sigmoid(),
         )
 
+    @ckpt_forward
     def forward(self, x):
         return self.aspp1(x) * self.aspp2(x)
 
@@ -93,6 +97,7 @@ class FFN(nn.Module):
         self.lraspp = LRASPP(dim * s, dim)
         self.se = SELayer(dim)
 
+    @ckpt_forward
     def forward(self, x):
         x1, x2 = self.w(x).chunk(2, dim=1)
         x = x1 * F.mish(x2)
@@ -118,6 +123,7 @@ class ShortCut(nn.Module):
             if self.rem > 0:
                 self.shortcut = nn.Conv2d(in_dim, self.rem, kernel_size=1, bias=False)
 
+    @ckpt_forward
     def forward(self, x):
         if self.in_dim == self.out_dim:
             pass
@@ -208,6 +214,7 @@ class ImageBlock(nn.Module):
         self.lraspp = LRASPP(in_dim, out_dim)
         self.shortcut = ShortCut(in_dim, out_dim)
 
+    @ckpt_forward
     def forward(self, x):
         resid = self.shortcut(x)
         x = self.gn1(self.conv(x) + x)
@@ -235,6 +242,7 @@ class ChannelVideoAttention(nn.Module):
         self.V = nn.Linear(dim, dim, bias=False)
         self.softmax = SoftmaxDropout(p=0.1, dim=-1)
 
+    @ckpt_forward
     def forward(self, q, k, v):
         height, width = q.shape[-2:]
         q = self.Q(q.mean(dim=[-1, -2]))  # (batch_size, len_s, dim)
@@ -271,6 +279,7 @@ class FullVideoAttention(nn.Module):
         self.V = nn.Linear(dim, dim, bias=False)
         self.softmax = SoftmaxDropout(p=0.1, dim=-1)
 
+    @ckpt_forward
     def forward(self, q, k, v):
         height, width = q.shape[-2:]
         q = self.Q(rearrange(q, "b m c h w -> b (h w) m c"))
@@ -309,6 +318,7 @@ class VideoBlock(nn.Module):
         x = torch.cat([x[:, :-1], f(q)], dim=1)
         return x
 
+    @ckpt_forward
     def forward(self, x):
         # x: (batch_size, len, dim, height, width)
         resid = x
