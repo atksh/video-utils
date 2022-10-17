@@ -19,8 +19,8 @@ if __name__ == "__main__":
     skip_rate = 3
     max_len = 16
     n_steps = 4
-    num_mix = 4
-    last_dim = 64
+    num_mix = 2
+    last_dim = 32
 
     dataset = VideoDatasetForInference(
         "video2.mp4", max_len, n_steps, resolusion, fps=fps, skip_rate=skip_rate

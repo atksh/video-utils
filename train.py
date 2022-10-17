@@ -10,7 +10,7 @@ if __name__ == "__main__":
     cache_dir = "cache"
     path = ["video.mp4"]
     total_batch_size = 32
-    batch_size = 4
+    batch_size = 8
     num_workers = 16
 
     max_epochs = 1000
@@ -20,8 +20,8 @@ if __name__ == "__main__":
     skip_rate = 3
     max_len = 16
     n_steps = 4
-    num_mix = 4
-    last_dim = 64
+    num_mix = 2
+    last_dim = 32
 
     dl = DataModule(
         path,

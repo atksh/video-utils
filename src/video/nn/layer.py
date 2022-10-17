@@ -5,8 +5,6 @@ from einops import rearrange
 from torch import nn
 from torch.nn import functional as F
 
-from .ckpt import ckpt_forward
-
 NEG_INF = -5000.0
 
 
