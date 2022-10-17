@@ -66,11 +66,7 @@ class Decoder(nn.Module):
 
         self.last_up = Layer2D(UpsampleWithRefrence(last_dim, 3))
         self.refine = VideoBlock(last_dim + 6, 1)
-        self.fc = nn.Sequential(
-            nn.Conv2d(last_dim + 6, last_dim, kernel_size=1, bias=False),
-            ImageBlock(last_dim, last_dim),
-            nn.Conv2d(last_dim, self.output_dim * self.n_steps, kernel_size=1),
-        )
+        self.fc = nn.Conv2d(last_dim + 6, self.output_dim * self.n_steps, kernel_size=1)
 
     @ckpt_forward
     def backbone_forward(self, x):
