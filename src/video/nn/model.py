@@ -39,7 +39,10 @@ class Decoder(nn.Module):
         self.convs = nn.ModuleList(convs)
 
         self.last_up = UpsampleWithRefrence(last_dim, 3)
-        self.refine = Layer2D(last_dim + 6, last_dim)
+        self.refine = nn.Sequential(
+            Layer2D(last_dim + 6, last_dim * 2),
+            Layer2D(last_dim * 2, last_dim),
+        )
         self.fc = nn.Conv2d(last_dim, output_dim * n_steps, kernel_size=1)
         self.n_steps = n_steps
 
@@ -64,11 +67,10 @@ class Decoder(nn.Module):
         x = self.refine(x[:, [-1]]).squeeze(1)
         x = self.fc(x)
         x = x.view(x.shape[0], self.n_steps, -1, x.shape[-2], x.shape[-1])
-        x = x.sigmoid()
         return x
 
     def loss(self, pred, gt):
-        return F.l1_loss(pred, gt)
+        return F.binary_cross_entropy_with_logits(pred, gt)
 
 
 if __name__ == "__main__":
