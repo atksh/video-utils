@@ -5,8 +5,6 @@ from einops import rearrange
 from torch import nn
 from torch.nn import functional as F
 
-from .ckpt import ckpt_forward
-
 NEG_INF = -5000.0
 
 
@@ -37,7 +35,6 @@ class VideoLayerNorm(nn.Module):
         self.gamma = nn.Parameter(torch.ones(dim))
         self.beta = nn.Parameter(torch.zeros(dim))
 
-    @ckpt_forward
     def forward(self, x):
         # (batch_size, seq_len, channel, height, width)
         assert is_video(x)
@@ -61,7 +58,6 @@ class SELayer(nn.Module):
             nn.Sigmoid(),
         )
 
-    @ckpt_forward
     def forward(self, x):
         assert is_image(x)
         b, c, _, _ = x.size()
@@ -76,7 +72,6 @@ class SoftmaxDropout(nn.Module):
         self.p = p
         self.dim = dim
 
-    @ckpt_forward
     def forward(self, score):
         if self.training:
             mask = torch.empty_like(score).bernoulli_(self.p).bool()
@@ -97,7 +92,6 @@ class ChannelVideoAttention(nn.Module):
         self.V = nn.Linear(dim, dim, bias=False)
         self.softmax = SoftmaxDropout(p=0.1, dim=-1)
 
-    @ckpt_forward
     def forward(self, q, k, v):
         assert all(is_video(x) for x in (q, k, v))
         height, width = q.shape[-2:]
@@ -135,7 +129,6 @@ class FullVideoAttention(nn.Module):
         self.V = nn.Linear(dim, dim, bias=False)
         self.softmax = SoftmaxDropout(p=0.1, dim=-1)
 
-    @ckpt_forward
     def forward(self, q, k, v):
         assert all(is_video(x) for x in (q, k, v))
         height, width = q.shape[-2:]
@@ -174,7 +167,6 @@ class FFN(nn.Module):
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
 
-    @ckpt_forward
     def forward(self, x):
         assert is_video(x)
         b = x.shape[0]
@@ -206,7 +198,6 @@ class ShortCut(nn.Module):
             if self.rem > 0:
                 self.shortcut = nn.Conv2d(in_dim, self.rem, kernel_size=1, bias=False)
 
-    @ckpt_forward
     def forward(self, x):
         assert is_image(x)
         if self.in_dim == self.out_dim:
@@ -245,7 +236,6 @@ class Layer2D(nn.Module):
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
 
-    @ckpt_forward
     def forward(self, x):
         assert is_video(x)
         bsz = x.shape[0]
@@ -278,7 +268,6 @@ class Layer3D(nn.Module):
         x = torch.cat([x[:, :-1], f(q)], dim=1)
         return x
 
-    @ckpt_forward
     def forward(self, x):
         # x: (batch_size, len, dim, height, width)
         assert is_video(x)
@@ -345,7 +334,6 @@ class UpsampleWithRefrence(Upsample):
         )
         self.high_dim = high_dim
 
-    @ckpt_forward
     def to_ref(self, x):
         return self._to_ref(x)
 
