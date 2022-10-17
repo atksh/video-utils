@@ -227,7 +227,7 @@ class Layer2D(nn.Module):
         super().__init__()
         self.gn1 = nn.GroupNorm(1, in_dim)
         self.conv1 = nn.Conv2d(
-            in_dim, in_dim, kernel_size=3, padding=1, bias=False, groups=in_dim
+            in_dim, in_dim, kernel_size=7, padding=3, bias=False, groups=in_dim
         )
 
         dim = max(in_dim, out_dim)
@@ -251,7 +251,7 @@ class Layer2D(nn.Module):
         resid = self.shortcut(x)
 
         x = self.gn1(x + self.conv1(x))
-        mid = x
+        mid = self.shortcut(x)
         x1, x2 = self.conv2(x).chunk(2, dim=1)
         x = x1 * F.gelu(x2)
         x = self.conv3(x)
