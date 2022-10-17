@@ -1,4 +1,5 @@
 import torch
+import math
 from einops import rearrange
 from torch import nn
 from torch.nn import functional as F
@@ -219,6 +220,34 @@ class FFN(nn.Module):
         return x
 
 
+class ShortCut(nn.Module):
+    def __init__(self, in_dim, out_dim):
+        super().__init__()
+        self.in_dim = in_dim
+        self.out_dim = out_dim
+        self.factor = None
+
+        if in_dim < out_dim:
+            rem = out_dim - in_dim
+            self.shortcut = nn.Conv2d(in_dim, rem, kernel_size=1, bias=False)
+        elif in_dim > out_dim:
+            self.factor = math.floor(in_dim / out_dim)  # >= 1
+            rem = out_dim - in_dim // self.factor
+            self.shortcut = nn.Conv2d(in_dim, rem, kernel_size=1, bias=False)
+
+    def forward(self, x):
+        assert is_image(x)
+        if self.in_dim == self.out_dim:
+            return x
+        elif self.in_dim < self.out_dim:
+            return torch.cat([x, self.shortcut(x)], dim=1)
+        else:
+            b, _, h, w = x.shape
+            y = x.view(b, -1, self.factor, h, w).mean(dim=2)
+            z = self.shortcut(x)
+            return torch.cat([y, z], dim=1)
+
+
 class Layer2D(nn.Module):
     def __init__(self, in_dim, out_dim):
         super().__init__()
@@ -233,10 +262,8 @@ class Layer2D(nn.Module):
         self.se = SELayer(out_dim)
         self.gn2 = nn.GroupNorm(1, out_dim)
 
-        if in_dim != out_dim:
-            self.shortcut = nn.Conv2d(in_dim, out_dim, kernel_size=1, bias=False)
-        else:
-            self.shortcut = nn.Identity()
+        self.shortcut1 = ShortCut(in_dim, out_dim)
+        self.shortcut2 = ShortCut(in_dim, out_dim)
 
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
@@ -245,10 +272,10 @@ class Layer2D(nn.Module):
         assert is_video(x)
         bsz = x.shape[0]
         x = self.to_image(x)
-        resid = self.shortcut(x)
+        resid = self.shortcut1(x)
 
         x = self.gn1(x + self.conv1(x))
-        mid = self.shortcut(x)
+        mid = self.shortcut2(x)
         x1, x2 = self.conv2(x).chunk(2, dim=1)
         x = x1 * F.silu(x2)
         x = self.conv3(x) + mid
