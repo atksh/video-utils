@@ -362,6 +362,8 @@ class UpsampleWithRefrence(Upsample):
         highres = highres.reshape(b * high_dim, 1, *size)
         out = self.transform(ref, highres)
         out = out.view(b, high_dim, *size)
+        highres = highres.view(b, high_dim, *size)
+        out = torch.cat([out, highres], dim=1)
         out = self.to_video(out, bsz)
         return out
 

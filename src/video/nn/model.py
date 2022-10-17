@@ -26,11 +26,11 @@ class Decoder(nn.Module):
             )
             _in_dim = in_dim
             if i == 0:
-                in_dim += 3
+                in_dim += 6
                 out_dim = last_dim
             else:
                 out_dim = self.feat_dims[i - 1]
-                in_dim += out_dim
+                in_dim += out_dim * 2
             ups.append(UpsampleWithRefrence(_in_dim, out_dim if i > 0 else 3))
             convs.append(Layer2D(in_dim=in_dim, out_dim=out_dim))
 
@@ -39,7 +39,7 @@ class Decoder(nn.Module):
         self.convs = nn.ModuleList(convs)
 
         self.last_up = UpsampleWithRefrence(last_dim, 3)
-        self.fc = nn.Conv2d(last_dim + 3, output_dim * n_steps, kernel_size=1)
+        self.fc = nn.Conv2d(last_dim + 6, output_dim * n_steps, kernel_size=1)
         self.n_steps = n_steps
 
     @ckpt_forward
