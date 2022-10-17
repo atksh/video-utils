@@ -1,6 +1,5 @@
 import hashlib
 import os
-import pickle
 
 import pytorch_lightning as pl
 import torch
@@ -129,6 +128,13 @@ class Model(pl.LightningModule):
         loss = self.loss(pred, y)
         self.log("val_loss", loss)
         return loss
+
+    def predict_step(self, video, batch_idx):
+        assert video.ndim == 5
+        with torch.inference_mode():
+            preds = self.model(video)
+            sampled = torch.stack([p.sample() for p in preds])
+        return (sampled * 255).to(torch.uint8)
 
     def configure_optimizers(self):
         return AdaBelief(

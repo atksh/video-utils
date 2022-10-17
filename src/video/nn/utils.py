@@ -79,7 +79,6 @@ class DiscMixLogistic:
         )  # B, M, H, W
         return torch.logsumexp(log_probs, dim=1)  # B, H, W
 
-    @ckpt_forward
     def sample(self, t=1.0):
         gumbel = -torch.log(
             -torch.log(
@@ -117,7 +116,6 @@ class DiscMixLogistic:
         x = x / 2.0 + 0.5
         return x
 
-    @ckpt_forward
     def mean(self):
         sel = torch.softmax(self.logit_probs, dim=1)  # B, M, H, W
         sel = sel.unsqueeze(1)  # B, 1, M, H, W
