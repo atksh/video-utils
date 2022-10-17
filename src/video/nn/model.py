@@ -64,7 +64,7 @@ class Decoder(nn.Module):
         self.ups = nn.ModuleList(ups)
         self.post_blocks = nn.ModuleList(post_blocks)
 
-        self.last_up = UpsampleWithRefrence(last_dim, 3)
+        self.last_up = Layer2D(UpsampleWithRefrence(last_dim, 3))
         self.refine = VideoBlock(last_dim + 6, 1)
         self.fc = nn.Sequential(
             nn.Conv2d(last_dim + 6, last_dim, kernel_size=1, bias=False),
