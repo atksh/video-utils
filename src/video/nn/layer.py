@@ -295,6 +295,7 @@ class Layer2D(nn.Module):
 class Layer3D(nn.Module):
     def __init__(self, dim, heads):
         super().__init__()
+        self.pre = Layer2D(dim, dim)
         self.channel_attn = ChannelVideoAttention(dim, heads)
         self.full_attn = FullVideoAttention(dim, heads)
         self.ffn = FFN(dim)
@@ -309,6 +310,7 @@ class Layer3D(nn.Module):
     def forward(self, x):
         # x: (batch_size, len, dim, height, width)
         assert is_video(x)
+        x = self.pre(x)
         resid = x
         x = self.ln1(x + self.channel_attn(x, x, x))
         full_attn = lambda q: self.full_attn(q, x, x)
