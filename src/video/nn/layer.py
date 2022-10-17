@@ -196,11 +196,8 @@ class FFN(nn.Module):
     def __init__(self, dim, s=2, kernel_size=1):
         super().__init__()
         padding = (kernel_size - 1) // 2
-        self.wi1 = nn.Conv2d(
-            dim, dim * s, kernel_size=kernel_size, padding=padding, bias=False
-        )
-        self.wi2 = nn.Conv2d(
-            dim, dim * s, kernel_size=kernel_size, padding=padding, bias=False
+        self.wi = nn.Conv2d(
+            dim, dim * s * 2, kernel_size=kernel_size, padding=padding, bias=False
         )
         self.wo = nn.Conv2d(
             dim * s, dim, kernel_size=kernel_size, padding=padding, bias=False
@@ -213,8 +210,7 @@ class FFN(nn.Module):
         b = x.shape[0]
         x = self.to_image(x)
 
-        x1 = self.wi1(x)
-        x2 = self.wi2(x)
+        x1, x2 = x.chunk(2, dim=1)
         x = x1 * F.silu(x2)
 
         x = self.wo(x)
