@@ -13,11 +13,11 @@ from video.net import Model
 from video.dataset import VideoDatasetForInference
 
 if __name__ == "__main__":
-    resolusion = "640:360"
+    resolusion = "320:180"
     batch_size = 1
     fps = 30
     skip_rate = 3
-    max_len = 8
+    max_len = 16
     n_steps = 4
     num_mix = 4
     last_dim = 64

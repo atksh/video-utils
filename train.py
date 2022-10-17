@@ -15,10 +15,10 @@ if __name__ == "__main__":
 
     max_epochs = 1000
 
-    resolusion = "640:360"
+    resolusion = "320:180"
     fps = 30
     skip_rate = 3
-    max_len = 8
+    max_len = 16
     n_steps = 4
     num_mix = 4
     last_dim = 64
