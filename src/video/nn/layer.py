@@ -222,6 +222,30 @@ def VideoLayerNorm(dim, eps=1e-5):
     return Layer2D(nn.GroupNorm(1, dim, eps=eps))
 
 
+class ConvGRU(nn.Module):
+    def __init__(self, dim):
+        super().__init__()
+        self.conv_z = nn.Conv2d(2 * dim, dim, kernel_size=1)
+        self.conv_r = nn.Conv2d(2 * dim, dim, kernel_size=1)
+        self.conv_h = nn.Conv2d(2 * dim, dim, kernel_size=1)
+
+    def forward(self, video):
+        # video: (batch_size, seq_len, dim, height, width)
+        seq_len = video.shape[1]
+        out = []
+        h = torch.zeros_like(video[:, 0])
+        for i in range(seq_len):
+            x = video[:, i]
+            xh = torch.cat([x, h], dim=1)
+            z = torch.sigmoid(self.conv_z(xh))
+            r = torch.sigmoid(self.conv_r(xh))
+            xh = torch.cat([x, r * h], dim=1)
+            h = (1 - z) * h + z * torch.tanh(self.conv_h(xh))
+            out.append(h)
+        out = torch.stack(out, dim=1)
+        return out
+
+
 class ChannelVideoAttention(nn.Module):
     def __init__(self, dim, heads):
         super().__init__()
@@ -298,25 +322,29 @@ class VideoBlock(nn.Module):
     def __init__(self, dim, heads):
         super().__init__()
         self.image = Layer2D(ImageBlock(dim, dim))
+        self.conv_gru = ConvGRU(dim)
         self.channel_attn = ChannelVideoAttention(dim, heads)
         self.full_attn = FullVideoAttention(dim, heads)
         self.ffn = Layer2D(FFN(dim))
         self.ln1 = VideoLayerNorm(dim)
         self.ln2 = VideoLayerNorm(dim)
         self.ln3 = VideoLayerNorm(dim)
+        self.ln4 = VideoLayerNorm(dim)
 
     def last_only_forward(self, f, x):
         q = x[:, [-1]]
-        q = self.ln2(f(q) + q)
+        q = self.ln3(f(q) + q)
         x = torch.cat([x[:, :-1], q], dim=1)
         return x
 
+    @ckpt_forward
     def forward(self, x):
         # x: (batch_size, len, dim, height, width)
         x = self.image(x)
         resid = x
         x = self.ln1(x + self.channel_attn(x, x, x))
+        x = self.ln2(x + self.conv_gru(x))
         full_attn = lambda q: self.full_attn(q, x, x)
         x = self.last_only_forward(full_attn, x)
-        x = self.ln3(x + self.ffn(x) + resid)
+        x = self.ln4(x + self.ffn(x) + resid)
         return x
