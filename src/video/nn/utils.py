@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+
 class DiscMixLogistic:
     def __init__(self, param, num_mix=10, num_bits=8):
         B, C, H, W = param.size()
@@ -145,4 +146,4 @@ class DiscMixLogistic:
 
     def loss(self, x):
         recon = self.log_prob(x)
-        return -torch.sum(recon, dim=[1, 2]).mean()
+        return -recon.mean()
