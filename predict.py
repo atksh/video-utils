@@ -33,7 +33,7 @@ if __name__ == "__main__":
     )
     model = Model(n_steps=n_steps, last_dim=last_dim, num_mix=num_mix)
 
-    version = 0
+    version = 1
     ckpt_path = glob.glob(f"lightning_logs/version_{version}/checkpoints/*.ckpt")[-1]
     model = Model.load_from_checkpoint(
         ckpt_path,
