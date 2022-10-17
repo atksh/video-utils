@@ -233,8 +233,7 @@ class ShortCut(nn.Module):
             self.shortcut = nn.Conv2d(in_dim, self.rem, kernel_size=1, bias=False)
         elif in_dim > out_dim:
             self.factor = math.ceil(in_dim / out_dim)  # >= 1
-            block_size = in_dim // self.factor
-            self.rem = out_dim - block_size * self.factor
+            self.rem = out_dim - in_dim // self.factor
             if self.rem > 0:
                 self.shortcut = nn.Conv2d(in_dim, self.rem, kernel_size=1, bias=False)
 
@@ -246,8 +245,7 @@ class ShortCut(nn.Module):
             x = torch.cat([x, self.shortcut(x)], dim=1)
         else:
             b, c, h, w = x.shape
-            y = x[:, : c - self.rem]
-            print(x.shape, y.shape, self.factor, self.rem, self.in_dim, self.out_dim)
+            y = x[:, : (self.in_dim // self.factor) * self.factor]
             y = y.reshape(b, self.factor, -1, h, w).mean(dim=1)
             if self.rem > 0:
                 x = torch.cat([y, self.shortcut(x)], dim=1)
