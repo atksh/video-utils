@@ -15,9 +15,9 @@ class Decoder(nn.Module):
         self.avg = nn.AvgPool3d(kernel_size=(1, 2, 2), padding=0, stride=(1, 2, 2))
         self.backbone = Backbone()
         self.backbone_feat_dims = [80, 160, 320, 640]
-        self.front_feat_dims = [16, 32, 64, 96]
+        self.front_feat_dims = [32, 32, 64, 96]
         self.num_heads = [1, 1, 2, 3]
-        self.num_layers = [1, 2, 3, 4]
+        self.num_layers = [1, 1, 2, 4]
 
         self.n_steps = n_steps
         self.num_mix = num_mix
