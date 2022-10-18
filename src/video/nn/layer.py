@@ -198,7 +198,8 @@ class ImageBlock(nn.Module):
     def __init__(self, in_dim, out_dim, kernel_size=7):
         super().__init__()
         padding = (kernel_size - 1) // 2
-        self.gn = nn.GroupNorm(1, out_dim)
+        self.gn1 = nn.GroupNorm(1, in_dim)
+        self.gn2 = nn.GroupNorm(1, out_dim)
         self.conv = nn.Conv2d(
             in_dim,
             in_dim * 4,
@@ -210,15 +211,16 @@ class ImageBlock(nn.Module):
         self.fc = nn.Conv2d(in_dim * 4, in_dim, kernel_size=1, bias=False)
         self.se = SELayer(in_dim)
         self.lraspp = LRASPP(in_dim, out_dim)
-        self.shortcut = ShortCut(in_dim, out_dim)
+        self.shortcut1 = ShortCut(in_dim, out_dim)
+        self.shortcut2 = ShortCut(in_dim, out_dim)
 
     def forward(self, x):
-        resid = self.shortcut(x)
+        r = x
+        resid = self.shortcut1(x)
         x = self.conv(x)
         x = F.silu(x)
-        x = self.fc(x)
-        x = self.se(x)
-        x = self.gn(self.lraspp(x) + resid)
+        x = self.gn1(self.fc(x) + r)
+        x = self.gn2(self.lraspp(self.se(x)) + self.shortcut2(x) + resid)
         return x
 
 
