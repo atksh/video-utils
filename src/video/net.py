@@ -8,7 +8,7 @@ from functorch.compile import memory_efficient_fusion
 from tqdm import tqdm
 
 from .dataset import VideoDataset
-from .nn.model import EncDecModel, Loss
+from .nn.model import EncDecModel, Loss, Encoder, Decoder
 
 
 class DataModule(pl.LightningDataModule):
@@ -118,15 +118,14 @@ class Model(pl.LightningModule):
         n_steps,
     ):
         super().__init__()
-        model = EncDecModel(
-            backbone_feat_dims,
-            front_feat_dims,
-            num_heads,
-            num_layers,
-            last_dim,
-            n_steps,
+        self.encoder = Encoder(
+            backbone_feat_dims, front_feat_dims, num_heads, num_layers
         )
-        self.model = memory_efficient_fusion(model)
+        self.decoder = Decoder(front_feat_dims, last_dim, n_steps)
+        self.model = EncDecModel(self.encoder, self.decoder)
+        self.encoder = memory_efficient_fusion(self.encoder)
+        self.decoder = memory_efficient_fusion(self.decoder)
+        self.mdoel = memory_efficient_fusion(self.model)
         self.loss = Loss()
 
     def forward(self, x):

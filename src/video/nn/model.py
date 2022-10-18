@@ -127,18 +127,12 @@ class Decoder(nn.Module):
 class EncDecModel(nn.Module):
     def __init__(
         self,
-        backbone_feat_dims,
-        front_feat_dims,
-        num_heads,
-        num_layers,
-        last_dim,
-        n_steps,
+        encoder: Encoder,
+        decoder: Decoder,
     ):
         super().__init__()
-        self.encoder = Encoder(
-            backbone_feat_dims, front_feat_dims, num_heads, num_layers
-        )
-        self.decoder = Decoder(front_feat_dims, last_dim, n_steps)
+        self.encoder = encoder
+        self.decoder = decoder
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
         self.from_YCbCr420 = YCbCr420ToRGB()
