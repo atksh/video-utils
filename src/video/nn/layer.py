@@ -36,7 +36,7 @@ class Layer2D(nn.Module):
         return x
 
 
-class LayerNorm2d(nn.LayerNorm):
+class LayerNorm2D(nn.LayerNorm):
     def __init__(self, num_channels, eps=1e-6, affine=True):
         super().__init__(num_channels, eps=eps, elementwise_affine=affine)
 
