@@ -5,8 +5,6 @@ from einops import rearrange
 from torch import nn
 from torch.nn import functional as F
 
-from .einsum import Einsum
-
 NEG_INF = -5000.0
 
 
@@ -265,9 +263,6 @@ class ChannelVideoAttention(nn.Module):
         self.V = nn.Linear(dim, dim, bias=False)
         self.softmax = SoftmaxDropout(p=0.1, dim=-1)
 
-        self.attn_einsum = Einsum("bhnd,bhmd->bhnm")
-        self.out_einsum = Einsum("bhnm,bshmd->bshnd")
-
     def forward(self, q, k, v):
         height, width = q.shape[-2:]
         q = self.Q(q.mean(dim=[-1, -2]))  # (batch_size, len_s, dim)
@@ -279,9 +274,9 @@ class ChannelVideoAttention(nn.Module):
         v = rearrange(v, "b hw m (h d) -> b hw h m d", h=self.heads)
 
         q = q * self.scale
-        attn = self.attn_einsum(q, k)
+        attn = torch.matmul(q, k.transpose(-1, -2))
         attn = self.softmax(attn)
-        out = self.out_einsum(attn, v)
+        out = torch.matmul(attn, v)
         out = rearrange(
             out,
             "b (height width) h n d -> b n (h d) height width",
@@ -304,9 +299,6 @@ class FullVideoAttention(nn.Module):
         self.V = nn.Linear(dim, dim, bias=False)
         self.softmax = SoftmaxDropout(p=0.1, dim=-1)
 
-        self.attn_einsum = Einsum("bshnd,bshmd->bshnm")
-        self.out_einsum = Einsum("bshnm,bshmd->bshnd")
-
     def forward(self, q, k, v):
         height, width = q.shape[-2:]
         q = self.Q(rearrange(q, "b m c h w -> b (h w) m c"))
@@ -318,9 +310,9 @@ class FullVideoAttention(nn.Module):
         v = rearrange(v, "b hw m (h d) -> b hw h m d", h=self.heads)
 
         q = q * self.scale
-        attn = self.attn_einsum(q, k)
+        attn = torch.matmul(q, k.transpose(-1, -2))
         attn = self.softmax(attn)
-        out = self.out_einsum(attn, v)
+        out = torch.matmul(attn, v)
         out = rearrange(
             out,
             "b (height width) h n d -> b n (h d) height width",
