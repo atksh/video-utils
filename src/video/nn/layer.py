@@ -48,7 +48,7 @@ class LayerNorm2D(nn.Module):
     def forward(self, x):
         mean = x.mean(dim=[2, 3], keepdim=True)
         var = x.var(dim=[2, 3], keepdim=True)
-        x = (x - mean) / torch.sqrt(var + self.eps)
+        x = (x - mean) * torch.rsqrt(var + self.eps)
         x = x * self.gamma + self.beta
         return x
 
