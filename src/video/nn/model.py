@@ -12,7 +12,7 @@ from .layer import (
     VideoBlock,
     VideoToImage,
 )
-from .utils import from_YCbCr420, to_YCbCr420, soft_clip
+from .utils import from_YCbCr420, soft_clip, to_YCbCr420
 
 
 class Decoder(nn.Module):
@@ -27,40 +27,38 @@ class Decoder(nn.Module):
         self.n_steps = n_steps
 
         feat_blocks = []
+        feat_time_blocks = []
         for i in range(4):
             in_dim = self.backbone_feat_dims[i]
             inner_dim = self.front_feat_dims[i]
+            heads = self.num_heads[i]
             feat_blocks.append(ImageBlock(in_dim, inner_dim))
+            feat_time_blocks.append(
+                nn.Sequential(
+                    *[VideoBlock(inner_dim, heads) for _ in range(self.num_layers[i])]
+                )
+            )
         self.feat_blocks = nn.ModuleList(feat_blocks)
+        self.feat_time_blocks = nn.ModuleList(feat_time_blocks)
 
-        pre_blocks = []
         ups = []
         post_blocks = []
         for i in reversed(range(4)):
-            pre_layers = []
-            post_layers = []
-
             in_dim = self.front_feat_dims[i]
             additional_dim = self.front_feat_dims[i - 1] if i > 0 else 3
             out_dim = last_dim if i == 0 else self.front_feat_dims[i - 1]
-            pre_heads = self.num_heads[i]
-            post_heads = self.num_heads[i - 1] if i > 0 else 1
-
-            for _ in range(self.num_layers[i]):
-                pre_layers.append(VideoBlock(in_dim, pre_heads))
 
             ups.append(Layer2D(UpsampleWithRefrence(in_dim, additional_dim)))
 
-            post_layers.append(
-                Layer2D(ImageBlock(in_dim + 2 * additional_dim, out_dim))
+            post_blocks.append(
+                Layer2D(
+                    nn.Sequential(
+                        ImageBlock(in_dim + 2 * additional_dim, out_dim),
+                        ImageBlock(out_dim, out_dim),
+                    )
+                )
             )
-            for _ in range(self.num_layers[i]):
-                post_layers.append(VideoBlock(out_dim, post_heads))
 
-            pre_blocks.append(nn.Sequential(*pre_layers))
-            post_blocks.append(nn.Sequential(*post_layers))
-
-        self.pre_blocks = nn.ModuleList(pre_blocks)
         self.ups = nn.ModuleList(ups)
         self.post_blocks = nn.ModuleList(post_blocks)
 
@@ -108,6 +106,7 @@ class Decoder(nn.Module):
         feats = self.backbone(l, cbcr)
         feats = [self.feat_blocks[i](feat) for i, feat in enumerate(feats)]
         feats = [self.to_video(feat, bsz) for feat in feats]
+        feats = [self.feat_time_blocks[i](feat) for i, feat in enumerate(feats)]
         return feats
 
     def post_process(self, l, cbcr):
@@ -122,10 +121,7 @@ class Decoder(nn.Module):
         feats = [lr]
         feats.extend(self.backbone_forward(video))
         x = feats[-1]
-        for pre, up, post, feat in zip(
-            self.pre_blocks, self.ups, self.post_blocks, reversed(feats[:-1])
-        ):
-            x = pre(x)
+        for up, post, feat in zip(self.ups, self.post_blocks, reversed(feats[:-1])):
             x = up(x, feat)
             x = post(x)
 
