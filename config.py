@@ -3,9 +3,9 @@ skip_rate = 1
 max_len = 16
 
 num_workers = 16
-total_batch_size = 32
-train_batch_size = 8
-predict_batch_size = 4
+total_batch_size = 30
+train_batch_size = 6
+predict_batch_size = 3
 fps = 30
 
 backbone_feat_dims = [80, 160, 320, 640]
