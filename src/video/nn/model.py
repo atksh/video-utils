@@ -133,6 +133,13 @@ class Decoder(nn.Module):
         cbcr = cbcr.view(cbcr.shape[0], self.n_steps, -1, cbcr.shape[2], cbcr.shape[3])
         return l, cbcr
 
+    def inference(self, video):
+        l, cbcr = self.forward(video)
+        l = l.sigmoid()
+        cbcr = cbcr.sigmoid()
+        rgb = self.from_YCbCr420(l, cbcr)
+        return rgb
+
     def loss(self, pred_l, pred_cbcr, gold):
         gt_l, gt_cbcr = self.to_YCbCr420(gold)
         loss_l = F.binary_cross_entropy_with_logits(pred_l, gt_l)
