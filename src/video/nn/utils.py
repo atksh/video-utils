@@ -85,7 +85,7 @@ class RGB2YCbCr420(torch.nn.Module):
         return l, cbcr
 
 
-class YCbCr4202RGB(torch.nn.Module):
+class YCbCr420ToRGB(torch.nn.Module):
     def __init__(self):
         super().__init__()
         self.to_image = VideoToImage()

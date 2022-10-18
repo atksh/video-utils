@@ -12,7 +12,7 @@ from .layer import (
     VideoBlock,
     VideoToImage,
 )
-from .utils import RGB2YCbCr420, YCbCr4202RGB, from_YCbCr420, soft_clip, to_YCbCr420
+from .utils import RGB2YCbCr420, YCbCr420ToRGB, from_YCbCr420, soft_clip, to_YCbCr420
 
 
 class Encoder(nn.Module):
@@ -142,7 +142,7 @@ class EncDecModel(nn.Module):
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
         self.to_YCbCr420 = RGB2YCbCr420()
-        self.from_YCbCr420 = YCbCr4202RGB()
+        self.from_YCbCr420 = YCbCr420ToRGB()
 
     def encode(self, video):
         return self.encoder(video)
