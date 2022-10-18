@@ -89,7 +89,7 @@ class SoftmaxDropout(nn.Module):
 class FFN(nn.Module):
     def __init__(self, dim, s=2):
         super().__init__()
-        self.w = nn.Conv2d(dim, dim * s * 2, kernel_size=1, padding=0, bias=False)
+        self.w = nn.Conv2d(dim, dim * s * 2, kernel_size=3, padding=1, bias=False)
         self.se = SELayer(dim * s)
         self.lraspp = LRASPP(dim * s, dim)
 
@@ -162,7 +162,9 @@ class UpsampleWithRefrence(Upsample):
     def __init__(self, low_dim, high_dim, scale=2, mode="bilinear", align_corners=True):
         super().__init__(scale, mode, align_corners)
         self.high_dim = high_dim
-        self.to_ref = nn.Conv2d(low_dim, 2 * high_dim, kernel_size=1, bias=False)
+        self.to_ref = nn.Conv2d(
+            low_dim, 2 * high_dim, kernel_size=3, padding=1, bias=False
+        )
         self.up = Upsample(scale, mode, align_corners)
 
     def forward(self, lowres, highres):
@@ -191,7 +193,7 @@ class UpsampleWithRefrence(Upsample):
 
 
 class ImageBlock(nn.Module):
-    def __init__(self, in_dim, out_dim, kernel_size=3):
+    def __init__(self, in_dim, out_dim, kernel_size=7):
         super().__init__()
         padding = (kernel_size - 1) // 2
         self.gn = nn.GroupNorm(1, out_dim)
