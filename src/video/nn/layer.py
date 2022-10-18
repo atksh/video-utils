@@ -232,7 +232,7 @@ class ImageBlock(nn.Module):
     def forward(self, x):
         resid = self.sc(x)
         x = self.ln(self.lraspp(x) + resid)
-        x = self.mbconv(x)
+        x = self.mbconvs(x)
         return x
 
 
