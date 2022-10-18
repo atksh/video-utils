@@ -1,8 +1,9 @@
 import opt_einsum as oe
+import torch
 import torch.nn as nn
 
 
-class Einsum(nn.Module):
+class OptEinsum(nn.Module):
     def __init__(self, equation):
         super().__init__()
         self.equation = equation
@@ -19,3 +20,12 @@ class Einsum(nn.Module):
     def forward(self, *args):
         expr = self.get_expr(*args)
         return expr(*args)
+
+
+class Einsum(nn.Module):
+    def __init__(self, equation):
+        super().__init__()
+        self.equation = equation
+
+    def forward(self, *args):
+        return torch.einsum(self.equation, *args)
