@@ -4,6 +4,7 @@ import torch
 from einops import rearrange
 from torch import nn
 from torch.nn import functional as F
+from torch.jit import Final
 
 NEG_INF = -5000.0
 
@@ -36,19 +37,19 @@ class Layer2D(nn.Module):
 
 
 class LayerNorm2D(nn.Module):
+    eps: Final[float]
+
     def __init__(self, dim, eps=1e-6):
         super().__init__()
         self.eps = eps
-        self.gamma = nn.Parameter(torch.ones(dim))
-        self.beta = nn.Parameter(torch.zeros(dim))
+        self.gamma = nn.Parameter(torch.ones((1, dim, 1, 1)))
+        self.beta = nn.Parameter(torch.zeros((1, dim, 1, 1)))
 
     def forward(self, x):
         mean = x.mean(dim=[2, 3], keepdim=True)
         var = x.var(dim=[2, 3], keepdim=True)
         x = (x - mean) / torch.sqrt(var + self.eps)
-        gamma = self.gamma.view(1, -1, 1, 1)
-        beta = self.beta.view(1, -1, 1, 1)
-        x = x * gamma + beta
+        x = x * self.gamma + self.beta
         return x
 
 
