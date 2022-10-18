@@ -1,4 +1,5 @@
 import timm
+import torch
 from torch import nn
 
 
@@ -9,21 +10,20 @@ class Backbone(nn.Module):
             "convnext_nano", pretrained=False, num_classes=0, global_pool=""
         )
 
-        blocks = [m.stem] + [m.stages[i] for i in range(4)]
+        blocks = nn.ModuleList([m.stages[i] for i in range(4)])
+        self.conv_l = nn.Conv2d(1, 1, kernel_size=2, stride=2, bias=False)
+        self.stem = m.stem
         self.blocks = nn.ModuleList(blocks)
 
-    def extract_features(self, x):
+    def extract_features(self, l, cbcr):
+        l = self.conv_l(l)
+        x = self.stem(torch.cat([l, cbcr], dim=1))
         features = []
         for block in self.blocks:
             x = block(x)
             features.append(x)
-        return features[1:]
+        return features
 
-    def forward(self, video):
-        bsz, seq_len, c, h, w = video.shape
-        imgs = video.view(bsz * seq_len, c, h, w)
-        feats = self.extract_features(imgs)  # list of (bsz * seq_len, dim, h, w)
-        feats = [
-            f.view(bsz, seq_len, *f.shape[1:]) for f in feats
-        ]  # list of (bsz, seq_len, dim, h, w). h and w are not necessarily the same.
+    def forward(self, l, cbcr):
+        feats = self.extract_features(l, cbcr)
         return feats

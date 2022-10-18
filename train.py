@@ -20,7 +20,6 @@ if __name__ == "__main__":
     skip_rate = 1
     max_len = 16
     n_steps = 4
-    num_mix = 4
     last_dim = 64
 
     dl = DataModule(
@@ -34,7 +33,7 @@ if __name__ == "__main__":
         fps=fps,
         skip_rate=skip_rate,
     )
-    model = Model(n_steps=n_steps, last_dim=last_dim, num_mix=num_mix)
+    model = Model(n_steps=n_steps, last_dim=last_dim)
 
     trainer = pl.Trainer(
         accelerator="gpu",

@@ -107,9 +107,9 @@ class DataModule(pl.LightningDataModule):
 
 
 class Model(pl.LightningModule):
-    def __init__(self, last_dim=32, n_steps=1, num_mix=4, num_bits=8):
+    def __init__(self, last_dim=32, n_steps=1):
         super().__init__()
-        self.model = Decoder(last_dim, n_steps, num_mix, num_bits)
+        self.model = Decoder(last_dim, n_steps)
         self.loss = self.model.loss
 
     def forward(self, x):
@@ -117,23 +117,23 @@ class Model(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, y = batch
-        pred = self.model(x)
-        loss = self.loss(pred, y)
+        l, cbcr = self.model(x)
+        loss = self.loss(l, cbcr, y)
         self.log("train_loss", loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
-        pred = self.model(x)
-        loss = self.loss(pred, y)
+        l, cbcr = self.model(x)
+        loss = self.loss(l, cbcr, y)
         self.log("val_loss", loss)
         return loss
 
     def predict_step(self, batch, batch_idx):
         video, y = batch
         with torch.inference_mode():
-            preds = self.model(video)
-            preds = torch.stack([p.mean() for p in preds])
+            l, cbcr = self.model(video)
+            preds = self.model.from_YCbCr420(l, cbcr)
             preds = preds.permute(1, 0, 2, 3, 4)
             preds = (preds * 255).to(torch.uint8)
             y = (y * 255).to(torch.uint8)

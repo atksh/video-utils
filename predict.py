@@ -19,7 +19,6 @@ if __name__ == "__main__":
     skip_rate = 1
     max_len = 16
     n_steps = 4
-    num_mix = 4
     last_dim = 64
 
     dataset = VideoDatasetForInference(
@@ -31,7 +30,6 @@ if __name__ == "__main__":
         shuffle=False,
         num_workers=2,
     )
-    model = Model(n_steps=n_steps, last_dim=last_dim, num_mix=num_mix)
 
     version = 0
     ckpt_path = glob.glob(f"lightning_logs/version_{version}/checkpoints/*.ckpt")[-1]
@@ -40,7 +38,6 @@ if __name__ == "__main__":
         map_location="cpu",
         n_steps=n_steps,
         last_dim=last_dim,
-        num_mix=num_mix,
     )
     model.eval()
 
