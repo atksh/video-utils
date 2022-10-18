@@ -39,8 +39,8 @@ def YCbCr2RGB(ycbcr):
             [1.0, -0.39465, -0.58060],
             [1.0, 2.03211, 0.0],
         ],
-        dtype=yuv.dtype,
-        device=yuv.device,
+        dtype=ycbcr.dtype,
+        device=ycbcr.device,
     )
     yuv = (ycbcr - bias.view(1, 3, 1, 1)) / scale.view(1, 3, 1, 1)
     rgb = torch.einsum("bchw,cd->bdhw", yuv, A)
