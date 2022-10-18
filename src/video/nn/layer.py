@@ -1,11 +1,12 @@
 import math
-from turtle import forward
 
 import torch
 from einops import rearrange
 from torch import nn
-from torch.nn import functional as F
 from torch.jit import Final
+from torch.nn import functional as F
+
+from .mish import Mish
 
 NEG_INF = -5000.0
 
@@ -61,7 +62,7 @@ class SELayer(nn.Module):
         intermed_dim = max(dim // reduction, 4)
         self.fc = nn.Sequential(
             nn.Linear(dim, intermed_dim, bias=False),
-            nn.SiLU(),
+            Mish(),
             nn.Linear(intermed_dim, dim, bias=False),
             nn.Sigmoid(),
         )
@@ -79,7 +80,7 @@ class LRASPP(nn.Module):
         self.aspp1 = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, 1, bias=False),
             LayerNorm2D(out_channels),
-            nn.SiLU(),
+            Mish(),
         )
         self.aspp2 = nn.Sequential(
             nn.AdaptiveAvgPool2d(1),
@@ -111,10 +112,11 @@ class FFN(nn.Module):
         self.w = nn.Conv2d(dim, dim * s * 2, kernel_size=3, padding=1, bias=False)
         self.se = SELayer(dim * s)
         self.lraspp = LRASPP(dim * s, dim)
+        self.act = Mish()
 
     def forward(self, x):
         x1, x2 = self.w(x).chunk(2, dim=1)
-        x = x1 * F.silu(x2)
+        x = x1 * self.act(x2)
         x = self.se(x)
         x = self.lraspp(x)
         return x
@@ -222,12 +224,13 @@ class MBConv(nn.Module):
         self.se = SELayer(dim * s)
         self.p2 = nn.Conv2d(dim * s, dim, kernel_size=1, bias=False)
         self.ln = LayerNorm2D(dim)
+        self.act = Mish()
 
     def forward(self, x):
         resid = x
         x = self.p1(x)
         x = self.d1(x)
-        x = F.silu(x)
+        x = self.act(x)
         x = self.se(x)
         x = self.p2(x)
         return self.ln(x + resid)

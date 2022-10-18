@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from .dataset import VideoDataset
 from .nn.backbone import Backbone
-from .nn.model import Decoder, MergedModel, Encoder, Loss
+from .nn.model import Decoder, Encoder, Loss, MergedModel
 
 
 class DataModule(pl.LightningDataModule):
