@@ -85,7 +85,7 @@ class Decoder(nn.Module):
 
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
-        self.to_YCbCr420 = Layer2D(RGB2YCbCr420())
+        self.to_YCbCr420 = RGB2YCbCr420()
 
         self.avg_pool = Layer2D(nn.AvgPool2d(2, 2))
 
@@ -141,8 +141,8 @@ class EncDecModel(nn.Module):
         self.decoder = Decoder(front_feat_dims, last_dim, n_steps)
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
-        self.to_YCbCr420 = Layer2D(RGB2YCbCr420())
-        self.from_YCbCr420 = Layer2D(YCbCr4202RGB())
+        self.to_YCbCr420 = RGB2YCbCr420()
+        self.from_YCbCr420 = YCbCr4202RGB()
 
     def encode(self, video):
         return self.encoder(video)

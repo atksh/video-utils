@@ -1,6 +1,8 @@
 import torch
 import torch.nn.functional as F
 
+from .layer import VideoToImage, ImageToVideo
+
 
 def soft_clip(x, lb, ub):
     y = torch.clamp(x, lb, ub)
@@ -69,10 +71,30 @@ def from_YCbCr420(l, cbcr):
 
 
 class RGB2YCbCr420(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.to_image = VideoToImage()
+        self.to_video = ImageToVideo()
+
     def forward(self, rgb):
-        return to_YCbCr420(rgb)
+        bsz = rgb.shape[0]
+        rgb = self.to_image(rgb)
+        l, cbcr = to_YCbCr420(rgb)
+        l = self.to_video(l, bsz)
+        cbcr = self.to_video(cbcr, bsz)
+        return l, cbcr
 
 
 class YCbCr4202RGB(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.to_image = VideoToImage()
+        self.to_video = ImageToVideo()
+
     def forward(self, l, cbcr):
-        return from_YCbCr420(l, cbcr)
+        bsz = l.shape[0]
+        l = self.to_image(l)
+        cbcr = self.to_image(cbcr)
+        rgb = from_YCbCr420(l, cbcr)
+        rgb = self.to_video(rgb, bsz)
+        return rgb
