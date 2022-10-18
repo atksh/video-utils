@@ -1,4 +1,5 @@
 import math
+from turtle import forward
 
 import torch
 from einops import rearrange
@@ -210,34 +211,39 @@ class UpsampleWithRefrence(Upsample):
         return out
 
 
-class ImageBlock(nn.Module):
-    def __init__(self, in_dim, out_dim, kernel_size=7):
+class MBConv(nn.Module):
+    def __init__(self, dim, s=4, kernel_size=3):
         super().__init__()
         padding = (kernel_size - 1) // 2
-        self.ln1 = LayerNorm2D(in_dim)
-        self.ln2 = LayerNorm2D(out_dim)
-        self.conv = nn.Conv2d(
-            in_dim,
-            in_dim * 4,
-            kernel_size=kernel_size,
-            padding=padding,
-            bias=False,
-            groups=in_dim,
+        self.p1 = nn.Conv2d(dim, dim * s, kernel_size=1, bias=False)
+        self.d1 = nn.Conv2d(
+            dim * s, dim * s, kernel_size=kernel_size, padding=padding, groups=dim * 4
         )
-        self.fc = nn.Conv2d(in_dim * 4, in_dim, kernel_size=1, bias=False)
-        self.lraspp = LRASPP(in_dim, out_dim)
-        self.shortcut = ShortCut(in_dim, out_dim)
-        self.se = SELayer(out_dim)
+        self.se = SELayer(dim * s)
+        self.p2 = nn.Conv2d(dim * s, dim, kernel_size=1, bias=False)
+        self.ln = LayerNorm2D(dim)
 
     def forward(self, x):
-        r = x
-        x = self.conv(x)
+        resid = x
+        x = self.p1(x)
+        x = self.d1(x)
         x = F.silu(x)
-        x = self.ln1(self.fc(x) + r)
-
-        r = self.shortcut(x)
-        x = self.ln2(self.lraspp(x) + r)
         x = self.se(x)
+        x = self.p2(x)
+        return self.ln(x + resid)
+
+
+class ImageBlock(nn.Module):
+    def __init__(self, in_dim, out_dim, kernel_size=3):
+        super().__init__()
+        self.mbconv = MBConv(in_dim, kernel_size=kernel_size)
+        self.lraspp = LRASPP(in_dim, out_dim)
+        self.shortcut = ShortCut(in_dim, out_dim)
+        self.ln = LayerNorm2D(out_dim)
+
+    def forward(self, x):
+        x = self.mbconv(x)
+        x = self.ln(self.lraspp(x) + self.shortcut(x))
         return x
 
 
