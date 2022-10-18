@@ -44,7 +44,6 @@ class LayerNorm2D(nn.LayerNorm):
         x = x.permute(0, 2, 3, 1)
         x = F.layer_norm(x, self.normalized_shape, self.weight, self.bias, self.eps)
         x = x.permute(0, 3, 1, 2)
-        x = x.contiguous()
         return x
 
 
@@ -62,8 +61,8 @@ class SELayer(nn.Module):
 
     def forward(self, x):
         b, c, _, _ = x.size()
-        y = self.avg_pool(x).view(b, c)
-        y = self.fc(y).view(b, c, 1, 1)
+        y = self.avg_pool(x).reshape(b, c)
+        y = self.fc(y).reshape(b, c, 1, 1)
         return x * y.expand_as(x)
 
 
@@ -138,12 +137,12 @@ class UpsampleWithRefrence(Upsample):
         x = self.interpolate(lowres, size=size)
         b = x.shape[0]
         ref = self.to_ref(x)
-        ref = ref.view(b * high_dim, 2, *size)
+        ref = ref.reshape(b * high_dim, 2, *size)
         highres = highres.reshape(b * high_dim, 1, *size)
 
         out = self.transform(ref, highres)
-        out = out.view(b, high_dim, *size)
-        highres = highres.view(b, high_dim, *size)
+        out = out.reshape(b, high_dim, *size)
+        highres = highres.reshape(b, high_dim, *size)
         return self.up(lowres, torch.cat([out, highres], dim=1))
 
     def transform(self, ref_xy, source):
@@ -305,7 +304,8 @@ def ImageBlock3D(in_dim, out_dim, kernel_size=3):
 class VideoBlock(nn.Module):
     def __init__(self, dim, heads):
         super().__init__()
-        self.image = ImageBlock3D(dim, dim)
+        self.pre = ImageBlock3D(dim, dim)
+        self.post = ImageBlock3D(dim, dim)
         self.conv_gru = ConvGRU(dim)
         self.channel_attn = ChannelVideoAttention(dim, heads)
         self.full_attn = FullVideoAttention(dim, heads)
@@ -323,11 +323,12 @@ class VideoBlock(nn.Module):
 
     def forward(self, x):
         # x: (batch_size, len, dim, height, width)
-        x = self.image(x)
+        x = self.pre(x)
         resid = x
         x = self.ln1(x + self.conv_gru(x))
         x = self.ln2(x + self.channel_attn(x, x, x))
         full_attn = lambda q: self.full_attn(q, x, x)
         x = self.last_only_forward(full_attn, self.ln3, x)
         x = self.ln4(x + self.ffn(x) + resid)
+        x = self.post(x)
         return x
