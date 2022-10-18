@@ -63,10 +63,12 @@ class Decoder(nn.Module):
 
             ups.append(Layer2D(UpsampleWithRefrence(in_dim, additional_dim)))
 
+            cat_dim = in_dim + 2 * additional_dim
             post_blocks.append(
                 Layer2D(
                     nn.Sequential(
-                        ImageBlock(in_dim + 2 * additional_dim, out_dim),
+                        ImageBlock(cat_dim, cat_dim),
+                        ImageBlock(cat_dim, out_dim),
                         ImageBlock(out_dim, out_dim),
                     )
                 )
