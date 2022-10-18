@@ -130,7 +130,7 @@ class Model(pl.LightningModule):
             front_feat_dims, dec_num_heads, dec_num_layers, last_dim, n_steps
         )
         self.loss = Loss()
-        self.fuse()
+        # self.fuse()
         self.model = EncDecModel(self.encoder, self.decoder)
 
     def fuse(self):
