@@ -8,7 +8,7 @@ from functorch.compile import memory_efficient_fusion
 from tqdm import tqdm
 
 from .dataset import VideoDataset
-from .nn.model import EncDecModel, Loss, Encoder, Decoder
+from .nn.model import Decoder, EncDecModel, Encoder, Loss
 
 
 class DataModule(pl.LightningDataModule):
