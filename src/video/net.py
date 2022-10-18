@@ -126,7 +126,7 @@ class Model(pl.LightningModule):
         self.model = EncDecModel(self.encoder, self.decoder)
         self.encoder = memory_efficient_fusion(self.encoder)
         self.decoder = memory_efficient_fusion(self.decoder)
-        self.mdoel = memory_efficient_fusion(self.model)
+        self.model = memory_efficient_fusion(self.model)
         self.loss = Loss()
 
     def forward(self, x):
