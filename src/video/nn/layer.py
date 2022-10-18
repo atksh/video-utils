@@ -5,6 +5,8 @@ from einops import rearrange
 from torch import nn
 from torch.nn import functional as F
 
+from .einsum import Einsum
+
 NEG_INF = -5000.0
 
 
@@ -270,13 +272,13 @@ class ChannelVideoAttention(nn.Module):
         v = self.V(rearrange(v, "b m c h w -> b (h w) m c"))
 
         q = rearrange(q, "b n (h d) -> b h n d", h=self.heads)
-        k = rearrange(k, "b m (h d) -> b h m d", h=self.heads)
+        k = rearrange(k, "b m (h d) -> b h d m", h=self.heads)
         v = rearrange(v, "b hw m (h d) -> b hw h m d", h=self.heads)
 
         q = q * self.scale
-        attn = torch.matmul(q, k.transpose(-1, -2))
+        attn = torch.matmul(q, k)
         attn = self.softmax(attn)
-        out = torch.matmul(attn, v)
+        out = torch.matmul(attn.unsqueeze(1), v)
         out = rearrange(
             out,
             "b (height width) h n d -> b n (h d) height width",
@@ -306,11 +308,11 @@ class FullVideoAttention(nn.Module):
         v = self.V(rearrange(v, "b m c h w -> b (h w) m c"))
 
         q = rearrange(q, "b hw n (h d) -> b hw h n d", h=self.heads)
-        k = rearrange(k, "b hw m (h d) -> b hw h m d", h=self.heads)
+        k = rearrange(k, "b hw m (h d) -> b hw h d m", h=self.heads)
         v = rearrange(v, "b hw m (h d) -> b hw h m d", h=self.heads)
 
         q = q * self.scale
-        attn = torch.matmul(q, k.transpose(-1, -2))
+        attn = torch.matmul(q, k)
         attn = self.softmax(attn)
         out = torch.matmul(attn, v)
         out = rearrange(
