@@ -141,7 +141,6 @@ class EncDecModel(nn.Module):
         self.decoder = Decoder(front_feat_dims, last_dim, n_steps)
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
-        self.to_YCbCr420 = RGB2YCbCr420()
         self.from_YCbCr420 = YCbCr420ToRGB()
 
     def encode(self, video):
@@ -160,7 +159,13 @@ class EncDecModel(nn.Module):
         rgb = self.from_YCbCr420(l, cbcr)
         return rgb
 
-    def loss(self, pred_l, pred_cbcr, gold):
+
+class Loss(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.to_YCbCr420 = RGB2YCbCr420()
+
+    def forward(self, pred_l, pred_cbcr, gold):
         gt_l, gt_cbcr = self.to_YCbCr420(gold)
         loss_l = F.l1_loss(pred_l, gt_l)
         loss_cbcr = F.l1_loss(pred_cbcr, gt_cbcr) * 2

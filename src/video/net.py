@@ -4,10 +4,11 @@ import os
 import pytorch_lightning as pl
 import torch
 from adabelief_pytorch import AdaBelief
+from functorch.compile import memory_efficient_fusion
 from tqdm import tqdm
 
 from .dataset import VideoDataset
-from .nn.model import EncDecModel
+from .nn.model import EncDecModel, Loss
 
 
 class DataModule(pl.LightningDataModule):
@@ -117,7 +118,7 @@ class Model(pl.LightningModule):
         n_steps,
     ):
         super().__init__()
-        self.model = EncDecModel(
+        model = EncDecModel(
             backbone_feat_dims,
             front_feat_dims,
             num_heads,
@@ -125,7 +126,8 @@ class Model(pl.LightningModule):
             last_dim,
             n_steps,
         )
-        self.loss = self.model.loss
+        self.model = memory_efficient_fusion(model)
+        self.loss = Loss()
 
     def forward(self, x):
         return self.model(x)
