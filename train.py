@@ -4,29 +4,20 @@ import pytorch_lightning as pl
 
 sys.path.append("src")
 
+from config import *
 from video.net import DataModule, Model
 
 if __name__ == "__main__":
     cache_dir = "cache"
     path = ["video.mp4"]
-    total_batch_size = 32
-    batch_size = 32
-    num_workers = 16
 
     max_epochs = 1000
-
-    resolution = "256:144"
-    fps = 30
-    skip_rate = 1
-    max_len = 16
-    n_steps = 4
-    last_dim = 32
 
     dl = DataModule(
         path,
         max_len,
         n_steps,
-        batch_size,
+        train_batch_size,
         num_workers,
         save_dir=cache_dir,
         resolution=resolution,
@@ -41,7 +32,7 @@ if __name__ == "__main__":
         precision=16,
         max_epochs=max_epochs,
         log_every_n_steps=1,
-        accumulate_grad_batches=total_batch_size // batch_size,
+        accumulate_grad_batches=total_batch_size // train_batch_size,
         benchmark=True,
         deterministic=False,
         check_val_every_n_epoch=1,

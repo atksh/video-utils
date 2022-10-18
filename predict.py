@@ -1,17 +1,18 @@
-import sys
 import argparse
+import glob
 import os
 import shutil
-import torch
-import glob
+import sys
 
 import pytorch_lightning as pl
+import torch
 from PIL import Image
 
 sys.path.append("src")
 
-from video.net import Model
+from config import *
 from video.dataset import VideoDatasetForInference
+from video.net import Model
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -19,20 +20,12 @@ if __name__ == "__main__":
     parser.add_argument("video_path", type=str)
     args = parser.parse_args()
 
-    resolution = "256:144"
-    batch_size = 4
-    fps = 30
-    skip_rate = 1
-    max_len = 16
-    n_steps = 4
-    last_dim = 32
-
     dataset = VideoDatasetForInference(
         args.video_path, max_len, n_steps, resolution, fps=fps, skip_rate=skip_rate
     )
     dataloader = torch.utils.data.DataLoader(
         dataset,
-        batch_size=batch_size,
+        batch_size=predict_batch_size,
         shuffle=False,
         num_workers=2,
     )
