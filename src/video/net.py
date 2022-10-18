@@ -119,17 +119,15 @@ class Model(pl.LightningModule):
         n_steps,
     ):
         super().__init__()
-        self.encoder = Encoder(
+        encoder = Encoder(
             backbone_feat_dims, front_feat_dims, num_heads, num_layers
         )
-        self.decoder = Decoder(front_feat_dims, last_dim, n_steps)
-        self.model = EncDecModel(self.encoder, self.decoder)
+        decoder = Decoder(front_feat_dims, last_dim, n_steps)
+        self.model = EncDecModel(encoder, decoder)
         self.loss = Loss()
         self.memory_efficient_fuse()
 
     def memory_efficient_fuse(self):
-        self.encoder = memory_efficient_fusion(self.encoder)
-        self.decoder = memory_efficient_fusion(self.decoder)
         self.model = memory_efficient_fusion(self.model)
         self.loss = memory_efficient_fusion(self.loss)
 
