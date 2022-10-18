@@ -12,7 +12,7 @@ from .layer import (
     VideoBlock,
     VideoToImage,
 )
-from .utils import from_YCbCr420, to_YCbCr420
+from .utils import from_YCbCr420, to_YCbCr420, soft_clip
 
 
 class Decoder(nn.Module):
@@ -110,6 +110,13 @@ class Decoder(nn.Module):
         feats = [self.to_video(feat, bsz) for feat in feats]
         return feats
 
+    def post_process(self, l, cbcr):
+        l = torch.sign(l) * torch.log1p(torch.abs(l))
+        cbcr = torch.sign(cbcr) * torch.log1p(torch.abs(cbcr))
+        l = soft_clip(l, -1, 1) * 0.5 + 0.5
+        cbcr = soft_clip(cbcr, -1, 1) * 0.5 + 0.5
+        return l, cbcr
+
     def forward(self, video):
         l, hr, lr = self.avg(video)
         feats = [lr]
@@ -131,12 +138,11 @@ class Decoder(nn.Module):
 
         l = l.view(l.shape[0], self.n_steps, -1, l.shape[2], l.shape[3])
         cbcr = cbcr.view(cbcr.shape[0], self.n_steps, -1, cbcr.shape[2], cbcr.shape[3])
+        l, cbcr = self.post_process(l, cbcr)
         return l, cbcr
 
     def inference(self, video):
         l, cbcr = self.forward(video)
-        l = l.sigmoid()
-        cbcr = cbcr.sigmoid()
         rgb = self.from_YCbCr420(l, cbcr)
         return rgb
 
