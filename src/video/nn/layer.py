@@ -205,7 +205,6 @@ class MBConv(nn.Module):
         )
         self.se = SELayer(dim * s)
         self.p2 = nn.Conv2d(dim * s, dim, kernel_size=1, bias=False)
-        self.ln = LayerNorm2D(dim)
         self.act = nn.Mish()
 
     def forward(self, x):
@@ -220,15 +219,15 @@ class MBConv(nn.Module):
 class ImageBlock(nn.Module):
     def __init__(self, in_dim, out_dim, kernel_size=3):
         super().__init__()
-        self.shortcut = ShortCut(in_dim, out_dim)
+        self.mbconv = MBConv(in_dim, kernel_size=kernel_size)
         self.lraspp = LRASPP(in_dim, out_dim)
-        self.ln = LayerNorm2D(out_dim)
-        self.mbconv = MBConv(out_dim, kernel_size=kernel_size)
+        self.sc = ShortCut(in_dim, out_dim)
+        self.ln = nn.LayerNorm(out_dim)
 
     def forward(self, x):
-        resid = self.shortcut(x)
-        x = self.lraspp(x)
+        resid = self.sc(x)
         x = self.mbconv(x)
+        x = self.lraspp(x)
         x = self.ln(x + resid)
         return x
 
