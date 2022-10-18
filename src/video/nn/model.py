@@ -26,8 +26,6 @@ class Decoder(nn.Module):
 
         self.n_steps = n_steps
 
-        self.up = nn.Upsample(scale_factor=2, mode="bicubic", align_corners=True)
-
         feat_blocks = []
         for i in range(4):
             in_dim = self.backbone_feat_dims[i]
