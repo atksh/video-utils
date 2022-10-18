@@ -62,8 +62,8 @@ def to_YCbCr420(rgb):
 def from_YCbCr420(l, cbcr):
     cb = cbcr[:, [0], :, :]
     cr = cbcr[:, [1], :, :]
-    cb = F.interpolate(cb, scale_factor=2, mode="bilinear", align_corners=True)
-    cr = F.interpolate(cr, scale_factor=2, mode="biliner", align_corners=True)
+    cb = F.interpolate(cb, scale_factor=2, mode="bicubic", align_corners=True)
+    cr = F.interpolate(cr, scale_factor=2, mode="bicubic", align_corners=True)
     cbcr = torch.cat([cb, cr], dim=1)
     ycbcr = torch.cat([l, cbcr], dim=1)
     rgb = YCbCr2RGB(ycbcr)
