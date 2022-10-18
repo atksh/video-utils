@@ -1,4 +1,5 @@
 import sys
+import argparse
 import os
 import shutil
 import torch
@@ -13,6 +14,11 @@ from video.net import Model
 from video.dataset import VideoDatasetForInference
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("version", type=int)
+    parser.add_argument("video_path", type=str)
+    args = parser.parse_args()
+
     resolution = "256:144"
     batch_size = 1
     fps = 30
@@ -22,7 +28,7 @@ if __name__ == "__main__":
     last_dim = 32
 
     dataset = VideoDatasetForInference(
-        "video2.mp4", max_len, n_steps, resolution, fps=fps, skip_rate=skip_rate
+        args.video_path, max_len, n_steps, resolution, fps=fps, skip_rate=skip_rate
     )
     dataloader = torch.utils.data.DataLoader(
         dataset,
@@ -31,7 +37,7 @@ if __name__ == "__main__":
         num_workers=2,
     )
 
-    version = 0
+    version = args.version
     ckpt_path = glob.glob(f"lightning_logs/version_{version}/checkpoints/*.ckpt")[-1]
     model = Model.load_from_checkpoint(
         ckpt_path,
