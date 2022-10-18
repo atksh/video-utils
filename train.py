@@ -25,7 +25,14 @@ if __name__ == "__main__":
         skip_rate=skip_rate,
     )
     model = Model(
-        backbone_feat_dims, front_feat_dims, num_heads, num_layers, last_dim, n_steps
+        backbone_feat_dims,
+        front_feat_dims,
+        enc_num_heads,
+        enc_num_layers,
+        dec_num_heads,
+        dec_num_layers,
+        last_dim,
+        n_steps,
     )
 
     trainer = pl.Trainer(

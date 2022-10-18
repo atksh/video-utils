@@ -115,17 +115,19 @@ class Model(pl.LightningModule):
         self,
         backbone_feat_dims,
         front_feat_dims,
-        num_heads,
-        num_layers,
+        enc_num_heads,
+        enc_num_layers,
+        dec_num_heads,
+        dec_num_layers,
         last_dim,
         n_steps,
     ):
         super().__init__()
         self.encoder = Encoder(
-            backbone_feat_dims, front_feat_dims, num_heads, num_layers
+            backbone_feat_dims, front_feat_dims, enc_num_heads, enc_num_layers
         )
         self.decoder = Decoder(
-            front_feat_dims, num_heads, num_layers, last_dim, n_steps
+            front_feat_dims, dec_num_heads, dec_num_layers, last_dim, n_steps
         )
         self.loss = Loss()
         self.fuse()

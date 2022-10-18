@@ -5,6 +5,7 @@ import shutil
 import sys
 from turtle import back
 
+import numpy as np
 import pytorch_lightning as pl
 import torch
 from PIL import Image
@@ -38,8 +39,10 @@ if __name__ == "__main__":
         map_location="cpu",
         backbone_feat_dims=backbone_feat_dims,
         front_feat_dims=front_feat_dims,
-        num_heads=num_heads,
-        num_layers=num_layers,
+        enc_num_heads=enc_num_heads,
+        enc_num_layers=enc_num_layers,
+        dec_num_heads=dec_num_heads,
+        dec_num_layers=dec_num_layers,
         last_dim=last_dim,
         n_steps=n_steps,
     )
@@ -57,7 +60,7 @@ if __name__ == "__main__":
     for t in range(n_steps):
         os.makedirs(f"out/{t}", exist_ok=True)
         for i, (pred, gold) in enumerate(zip(preds, golds)):
-            pred_img = Image.fromarray(pred[t].astype("uint8"))
-            gold_img = Image.fromarray(gold[t].astype("uint8"))
-            pred_img.save(f"out/{t}/{i}_pred.png")
-            gold_img.save(f"out/{t}/{i}_gold.png")
+            # stack with height
+            img = np.concatenate([gold[t], pred[t]], axis=0)
+            img = Image.fromarray(img)
+            img.save(f"out/{t}/{i}.png")

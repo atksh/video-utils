@@ -5,7 +5,7 @@ from einops import rearrange
 from torch import nn
 from torch.nn import functional as F
 
-from .einsum import OptEinsum as Einsum
+from .einsum import Einsum
 
 NEG_INF = -5000.0
 
