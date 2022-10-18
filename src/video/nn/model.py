@@ -1,3 +1,5 @@
+from tkinter import Image
+
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -12,7 +14,7 @@ from .layer import (
     VideoBlock,
     VideoToImage,
 )
-from .utils import RGB2YCbCr420, YCbCr420ToRGB, soft_clip, to_YCbCr420
+from .utils import RGB2YCbCr420, YCbCr420ToRGB, to_YCbCr420
 
 
 class Encoder(nn.Module):
@@ -50,7 +52,7 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, feat_dims, last_dim, n_steps):
+    def __init__(self, feat_dims, num_heads, num_layers, last_dim, n_steps):
         super().__init__()
         self.n_steps = n_steps
 
@@ -60,17 +62,17 @@ class Decoder(nn.Module):
             in_dim = feat_dims[i]
             additional_dim = feat_dims[i - 1] if i > 0 else 3
             out_dim = last_dim if i == 0 else feat_dims[i - 1]
+            heads = num_heads[i]
 
             ups.append(Layer2D(UpsampleWithRefrence(in_dim, additional_dim)))
 
             cat_dim = in_dim + 2 * additional_dim
             post_blocks.append(
-                Layer2D(
+                nn.Sequential(
+                    Layer2D(ImageBlock(cat_dim, out_dim)),
                     nn.Sequential(
-                        ImageBlock(cat_dim, cat_dim),
-                        ImageBlock(cat_dim, out_dim),
-                        ImageBlock(out_dim, out_dim),
-                    )
+                        *[VideoBlock(out_dim, heads) for _ in range(num_layers[i])]
+                    ),
                 )
             )
 
@@ -98,13 +100,6 @@ class Decoder(nn.Module):
         lr = self.avg_pool(hr)
         return hr_l, hr, lr
 
-    def post_process(self, l, cbcr):
-        l = torch.sign(l) * torch.log1p(torch.abs(l))
-        cbcr = torch.sign(cbcr) * torch.log1p(torch.abs(cbcr))
-        l = soft_clip(l, -1, 1) * 0.5 + 0.5
-        cbcr = soft_clip(cbcr, -1, 1) * 0.5 + 0.5
-        return l, cbcr
-
     def forward(self, video, feats):
         l, hr, lr = self.avg(video)
         feats = [lr] + feats
@@ -122,7 +117,6 @@ class Decoder(nn.Module):
 
         l = l.view(l.shape[0], self.n_steps, -1, l.shape[2], l.shape[3])
         cbcr = cbcr.view(cbcr.shape[0], self.n_steps, -1, cbcr.shape[2], cbcr.shape[3])
-        l, cbcr = self.post_process(l, cbcr)
         return l, cbcr
 
 
@@ -150,7 +144,7 @@ class EncDecModel:
         return l, cbcr
 
     def inference(self, video):
-        l, cbcr = self(video)
+        l, cbcr = map(torch.sigmoid, self(video))
         rgb = self.from_YCbCr420(l, cbcr)
         return rgb
 
@@ -161,6 +155,6 @@ class Loss:
 
     def __call__(self, pred_l, pred_cbcr, gold):
         gt_l, gt_cbcr = self.to_YCbCr420(gold)
-        loss_l = F.l1_loss(pred_l, gt_l)
-        loss_cbcr = F.l1_loss(pred_cbcr, gt_cbcr) * 2
+        loss_l = F.binary_cross_entropy_with_logits(pred_l, gt_l)
+        loss_cbcr = F.binary_cross_entropy_with_logits(pred_cbcr, gt_cbcr) * 2
         return (loss_l + loss_cbcr) / 3
