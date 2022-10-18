@@ -1,10 +1,10 @@
+from re import S
 from tkinter import Image
 
 import torch
 from torch import nn
 from torch.nn import functional as F
 
-from .backbone import Backbone
 from .ckpt import ckpt_forward
 from .layer import (
     ImageBlock,
@@ -24,7 +24,6 @@ class Encoder(nn.Module):
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
 
-        self.backbone = Backbone()
         feat_blocks = []
         feat_time_blocks = []
         for i in range(4):
@@ -40,11 +39,7 @@ class Encoder(nn.Module):
         self.feat_blocks = nn.ModuleList(feat_blocks)
         self.feat_time_blocks = nn.ModuleList(feat_time_blocks)
 
-    def forward(self, x):
-        bsz = x.shape[0]
-        x = self.to_image(x)
-        l, cbcr = to_YCbCr420(x)
-        feats = self.backbone(l, cbcr)
+    def forward(self, feats, bsz):
         feats = [self.feat_blocks[i](feat) for i, feat in enumerate(feats)]
         feats = [self.to_video(feat, bsz) for feat in feats]
         feats = [self.feat_time_blocks[i](feat) for i, feat in enumerate(feats)]
@@ -123,17 +118,27 @@ class Decoder(nn.Module):
 class EncDecModel:
     def __init__(
         self,
+        backbone: nn.Module,
         encoder: Encoder,
         decoder: Decoder,
     ):
+        self.backbone = backbone
         self.encoder = encoder
         self.decoder = decoder
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
         self.from_YCbCr420 = YCbCr420ToRGB()
 
+    def backbone_forward(self, x):
+        bsz = x.shape[0]
+        x = self.to_image(x)
+        l, cbcr = to_YCbCr420(x)
+        feats = self.backbone(l, cbcr)
+        return feats, bsz
+
     def encode(self, video):
-        return self.encoder(video)
+        feats, bsz = self.backbone(video)
+        return self.encoder(feats, bsz)
 
     def decode(self, video, feats):
         return self.decoder(video, feats)
