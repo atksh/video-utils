@@ -132,10 +132,10 @@ class Model(pl.LightningModule):
     def predict_step(self, batch, batch_idx):
         video, y = batch
         with torch.inference_mode():
-            l, cbcr = self.model(video)
+            l, cbcr = map(torch.sigmoid, self.model(video))
             preds = self.model.from_YCbCr420(l, cbcr)
-            preds = preds.permute(1, 0, 2, 3, 4)
             preds = (preds * 255).to(torch.uint8)
+            y = self.model.from_YCbCr420(*self.model.to_YCbCr420(y))
             y = (y * 255).to(torch.uint8)
         return preds, y
 

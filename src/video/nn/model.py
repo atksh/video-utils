@@ -102,7 +102,6 @@ class Decoder(nn.Module):
 
     @ckpt_forward
     def backbone_forward(self, x):
-        x = x.sigmoid()
         bsz = x.shape[0]
         x = self.to_image(x)
         l, cbcr = to_YCbCr420(x)
