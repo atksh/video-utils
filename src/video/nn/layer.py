@@ -104,40 +104,6 @@ class FFN(nn.Module):
         return x
 
 
-class ShortCut(nn.Module):
-    def __init__(self, in_dim, out_dim):
-        super().__init__()
-        self.in_dim = in_dim
-        self.out_dim = out_dim
-        self.factor = None
-        self.rem = None
-
-        if in_dim < out_dim:
-            self.rem = out_dim - in_dim
-            self.shortcut = nn.Conv2d(in_dim, self.rem, kernel_size=1, bias=False)
-        elif in_dim > out_dim:
-            self.factor = math.ceil(in_dim / out_dim)  # >= 1
-            self.rem = out_dim - in_dim // self.factor
-            if self.rem > 0:
-                self.shortcut = nn.Conv2d(in_dim, self.rem, kernel_size=1, bias=False)
-
-    def forward(self, x):
-        if self.in_dim == self.out_dim:
-            pass
-        elif self.in_dim < self.out_dim:
-            x = torch.cat([x, self.shortcut(x)], dim=1)
-        else:
-            b, _, h, w = x.shape
-            y = x[:, : (self.in_dim // self.factor) * self.factor]
-            y = y.reshape(b, self.factor, -1, h, w).mean(dim=1)
-            if self.rem > 0:
-                x = torch.cat([y, self.shortcut(x)], dim=1)
-            else:
-                x = y
-        assert x.shape[1] == self.out_dim, f"{x.shape[1]} != {self.out_dim}"
-        return x
-
-
 class Upsample(nn.Module):
     def __init__(self, scale=2, mode="bilinear", align_corners=True):
         super().__init__()
@@ -224,12 +190,11 @@ class ImageBlock(nn.Module):
         super().__init__()
         self.lraspp = LRASPP(in_dim, out_dim)
         self.mbconv = MBConv(out_dim, kernel_size=kernel_size)
-        self.sc = ShortCut(in_dim, out_dim)
         self.ln = LayerNorm2D(out_dim)
 
     def forward(self, x):
-        resid = self.sc(x)
-        x = self.ln(self.lraspp(x) + resid)
+        x = self.lraspp(x)
+        x = self.ln(x)
         x = self.mbconv(x)
         return x
 
