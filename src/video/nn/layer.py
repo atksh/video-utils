@@ -220,19 +220,17 @@ class MBConv(nn.Module):
 
 
 class ImageBlock(nn.Module):
-    def __init__(self, in_dim, out_dim, kernel_size=3, n_layers=3):
+    def __init__(self, in_dim, out_dim, kernel_size=5):
         super().__init__()
         self.lraspp = LRASPP(in_dim, out_dim)
-        self.mbconvs = nn.Sequential(
-            *[MBConv(out_dim, kernel_size=kernel_size) for _ in range(n_layers)]
-        )
+        self.mbconv = MBConv(out_dim, kernel_size=kernel_size)
         self.sc = ShortCut(in_dim, out_dim)
         self.ln = LayerNorm2D(out_dim)
 
     def forward(self, x):
         resid = self.sc(x)
         x = self.ln(self.lraspp(x) + resid)
-        x = self.mbconvs(x)
+        x = self.mbconv(x)
         return x
 
 
