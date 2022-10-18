@@ -44,6 +44,7 @@ class LayerNorm2D(nn.LayerNorm):
         x = x.permute(0, 2, 3, 1)
         x = F.layer_norm(x, self.normalized_shape, self.weight, self.bias, self.eps)
         x = x.permute(0, 3, 1, 2)
+        x = x.contiguous()
         return x
 
 
