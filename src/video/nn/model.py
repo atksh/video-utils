@@ -124,13 +124,12 @@ class Decoder(nn.Module):
         return l, cbcr
 
 
-class EncDecModel(nn.Module):
+class EncDecModel:
     def __init__(
         self,
         encoder: Encoder,
         decoder: Decoder,
     ):
-        super().__init__()
         self.encoder = encoder
         self.decoder = decoder
         self.to_image = VideoToImage()
@@ -143,7 +142,7 @@ class EncDecModel(nn.Module):
     def decode(self, video, feats):
         return self.decoder(video, feats)
 
-    def forward(self, video):
+    def __call__(self, video):
         feats = self.encode(video)
         l, cbcr = self.decode(video, feats)
         return l, cbcr
@@ -154,12 +153,11 @@ class EncDecModel(nn.Module):
         return rgb
 
 
-class Loss(nn.Module):
+class Loss:
     def __init__(self):
-        super().__init__()
         self.to_YCbCr420 = RGB2YCbCr420()
 
-    def forward(self, pred_l, pred_cbcr, gold):
+    def __call__(self, pred_l, pred_cbcr, gold):
         gt_l, gt_cbcr = self.to_YCbCr420(gold)
         loss_l = F.l1_loss(pred_l, gt_l)
         loss_cbcr = F.l1_loss(pred_cbcr, gt_cbcr) * 2
