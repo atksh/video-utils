@@ -325,12 +325,14 @@ class VideoBlock(nn.Module):
     def __init__(self, dim, heads):
         super().__init__()
         self.image = Layer2D(ImageBlock(dim, dim))
+        self.conv_gru = ConvGRU(dim)
         self.channel_attn = ChannelVideoAttention(dim, heads)
         self.full_attn = FullVideoAttention(dim, heads)
         self.ffn = Layer2D(FFN(dim))
         self.ln1 = VideoLayerNorm(dim)
         self.ln2 = VideoLayerNorm(dim)
         self.ln3 = VideoLayerNorm(dim)
+        self.ln4 = VideoLayerNorm(dim)
 
     def last_only_forward(self, f, ln, x):
         q = x[:, [-1]]
@@ -342,8 +344,9 @@ class VideoBlock(nn.Module):
         # x: (batch_size, len, dim, height, width)
         x = self.image(x)
         resid = x
-        x = self.ln1(x + self.channel_attn(x, x, x))
+        x = self.ln1(x + self.conv_gru(x))
+        x = self.ln2(x + self.channel_attn(x, x, x))
         full_attn = lambda q: self.full_attn(q, x, x)
-        x = self.last_only_forward(full_attn, self.ln2, x)
-        x = self.ln3(x + self.ffn(x) + resid)
+        x = self.last_only_forward(full_attn, self.ln3, x)
+        x = self.ln4(x + self.ffn(x) + resid)
         return x
