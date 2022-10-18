@@ -137,7 +137,7 @@ class EncDecModel:
         return feats, bsz
 
     def encode(self, video):
-        feats, bsz = self.backbone(video)
+        feats, bsz = self.backbone_forward(video)
         return self.encoder(feats, bsz)
 
     def decode(self, video, feats):
