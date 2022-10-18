@@ -45,8 +45,6 @@ class Encoder(nn.Module):
         feats = self.backbone(l, cbcr)
         feats = [self.feat_blocks[i](feat) for i, feat in enumerate(feats)]
         feats = [self.to_video(feat, bsz) for feat in feats]
-        # duplicate last one
-        feats = [torch.cat([feat, feat[:, [-1]]], dim=1) for feat in feats]
         feats = [self.feat_time_blocks[i](feat) for i, feat in enumerate(feats)]
         return feats
 
