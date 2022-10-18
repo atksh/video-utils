@@ -77,6 +77,8 @@ class Decoder(nn.Module):
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
 
+        self.avg_pool = Layer2D(nn.AvgPool2d(2, 2))
+
     def to_YCbCr420(self, video):
         bsz = video.shape[0]
         imgs = self.to_image(video)
@@ -95,9 +97,9 @@ class Decoder(nn.Module):
 
     def avg(self, video):
         hr_l, cbcr = self.to_YCbCr420(video)
-        l = F.avg_pool3d(hr_l, kernel_size=(1, 2, 2), stride=(1, 2, 2))
+        l = self.avg_pool(hr_l)
         hr = torch.cat([l, cbcr], dim=2)
-        lr = F.avg_pool3d(video, kernel_size=(1, 2, 2), stride=(1, 2, 2))
+        lr = self.avg_pool(hr)
         return hr_l, hr, lr
 
     @ckpt_forward
