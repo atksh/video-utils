@@ -97,6 +97,7 @@ class DataModule(pl.LightningDataModule):
             batch_size=self.batch_size,
             shuffle=False,
             num_workers=self.num_workers,
+            drop_last=True,
         )
 
     def test_dataloader(self):
@@ -105,6 +106,7 @@ class DataModule(pl.LightningDataModule):
             batch_size=self.batch_size,
             shuffle=False,
             num_workers=self.num_workers,
+            drop_last=True,
         )
 
 
@@ -119,9 +121,7 @@ class Model(pl.LightningModule):
         n_steps,
     ):
         super().__init__()
-        encoder = Encoder(
-            backbone_feat_dims, front_feat_dims, num_heads, num_layers
-        )
+        encoder = Encoder(backbone_feat_dims, front_feat_dims, num_heads, num_layers)
         decoder = Decoder(front_feat_dims, last_dim, n_steps)
         self.model = EncDecModel(encoder, decoder)
         self.loss = Loss()
