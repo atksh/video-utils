@@ -111,7 +111,6 @@ class Decoder(nn.Module):
         return feats
 
     def forward(self, video):
-        bsz = video.shape[0]
         l, hr, lr = self.avg(video)
         feats = [lr]
         feats.extend(self.backbone_forward(video))
@@ -125,13 +124,13 @@ class Decoder(nn.Module):
 
         x = self.last_up1(x[:, -1], hr[:, -1])
         x = self.refine1(x)
-        cbcr = self.fc_cbcr(x)
+        cbcr = self.fc_cbcr(x).sigmoid()
         x = self.last_up2(x, l[:, -1])
         x = self.refine2(x)
-        l = self.fc_l(x)
+        l = self.fc_l(x).sigmoid()
 
-        l = self.to_video(l, bsz)
-        cbcr = self.to_video(cbcr, bsz)
+        l = l.view(l.shape[0], self.n_steps, -1, l.shape[2], l.shape[3])
+        cbcr = cbcr.view(cbcr.shape[0], self.n_steps, -1, cbcr.shape[2], cbcr.shape[3])
         return l, cbcr
 
     def loss(self, pred_l, pred_cbcr, gold):
