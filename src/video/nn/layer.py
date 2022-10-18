@@ -36,20 +36,14 @@ class Layer2D(nn.Module):
         return x
 
 
-class LayerNorm2D(nn.Module):
-    eps: Final[float]
+class LayerNorm2d(nn.LayerNorm):
+    def __init__(self, num_channels, eps=1e-6, affine=True):
+        super().__init__(num_channels, eps=eps, elementwise_affine=affine)
 
-    def __init__(self, dim, eps=1e-6):
-        super().__init__()
-        self.eps = eps
-        self.gamma = nn.Parameter(torch.ones((1, dim, 1, 1)))
-        self.beta = nn.Parameter(torch.zeros((1, dim, 1, 1)))
-
-    def forward(self, x):
-        mean = x.mean(dim=[2, 3], keepdim=True)
-        var = x.var(dim=[2, 3], keepdim=True)
-        x = (x - mean) * torch.rsqrt(var + self.eps)
-        x = x * self.gamma + self.beta
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = x.permute(0, 2, 3, 1)
+        x = F.layer_norm(x, self.normalized_shape, self.weight, self.bias, self.eps)
+        x = x.permute(0, 3, 1, 2)
         return x
 
 
