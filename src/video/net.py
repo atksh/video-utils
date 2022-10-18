@@ -4,6 +4,7 @@ import os
 import pytorch_lightning as pl
 import torch
 from adabelief_pytorch import AdaBelief
+from functorch.compile import memory_efficient_fusion
 from tqdm import tqdm
 
 from .dataset import VideoDataset
@@ -123,15 +124,16 @@ class Model(pl.LightningModule):
         n_steps,
     ):
         super().__init__()
-        self.backbone = Backbone()
-        self.encoder = Encoder(
+        self.loss = Loss()
+        backbone = Backbone()
+        encoder = Encoder(
             backbone_feat_dims, front_feat_dims, enc_num_heads, enc_num_layers
         )
-        self.decoder = Decoder(
+        decoder = Decoder(
             front_feat_dims, dec_num_heads, dec_num_layers, last_dim, n_steps
         )
-        self.loss = Loss()
-        self.model = MergedModel(self.backbone, self.encoder, self.decoder)
+        model = MergedModel(backbone, encoder, decoder)
+        self.model = memory_efficient_fusion(model)
 
     def forward(self, x):
         return self.model(x)
