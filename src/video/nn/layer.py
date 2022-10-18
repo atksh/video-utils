@@ -222,7 +222,7 @@ class ImageBlock(nn.Module):
         self.mbconv = MBConv(in_dim, kernel_size=kernel_size)
         self.lraspp = LRASPP(in_dim, out_dim)
         self.sc = ShortCut(in_dim, out_dim)
-        self.ln = nn.LayerNorm(out_dim)
+        self.ln = LayerNorm2D(out_dim)
 
     def forward(self, x):
         resid = self.sc(x)
