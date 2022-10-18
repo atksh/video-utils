@@ -144,6 +144,6 @@ class Model(pl.LightningModule):
             self.parameters(),
             lr=1e-4,
             weight_decay=1e-4,
-            eps=1e-16,
+            eps=1e-12,
             print_change_log=False,
         )
