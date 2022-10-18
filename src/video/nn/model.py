@@ -150,7 +150,7 @@ class EncDecModel:
         return l, cbcr
 
     def inference(self, video):
-        l, cbcr = self.forward(video)
+        l, cbcr = self(video)
         rgb = self.from_YCbCr420(l, cbcr)
         return rgb
 
