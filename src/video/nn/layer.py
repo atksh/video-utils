@@ -191,9 +191,10 @@ class ImageBlock(nn.Module):
         self.lraspp = LRASPP(in_dim, out_dim)
         self.mbconv = MBConv(out_dim, kernel_size=kernel_size)
         self.ln = LayerNorm2D(out_dim)
+        self.skip = nn.Conv2d(in_dim, out_dim, kernel_size=1, bias=False)
 
     def forward(self, x):
-        x = self.lraspp(x)
+        x = self.lraspp(x) + self.skip(x)
         x = self.ln(x)
         x = self.mbconv(x)
         return x
