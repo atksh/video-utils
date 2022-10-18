@@ -5,8 +5,6 @@ from einops import rearrange
 from torch import nn
 from torch.nn import functional as F
 
-from .einsum import Einsum
-
 NEG_INF = -5000.0
 
 
@@ -37,6 +35,23 @@ class Layer2D(nn.Module):
         return x
 
 
+class LayerNorm2D(nn.Module):
+    def __init__(self, dim, eps=1e-6):
+        super().__init__()
+        self.eps = eps
+        self.gamma = nn.Parameter(torch.ones(dim))
+        self.beta = nn.Parameter(torch.zeros(dim))
+
+    def forward(self, x):
+        mean = x.mean(dim=[2, 3], keepdim=True)
+        var = x.var(dim=[2, 3], keepdim=True)
+        x = (x - mean) / torch.sqrt(var + self.eps)
+        gamma = self.gamma.view(1, -1, 1, 1)
+        beta = self.beta.view(1, -1, 1, 1)
+        x = x * gamma + beta
+        return x
+
+
 class SELayer(nn.Module):
     def __init__(self, dim, reduction=8):
         super().__init__()
@@ -61,7 +76,7 @@ class LRASPP(nn.Module):
         super().__init__()
         self.aspp1 = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, 1, bias=False),
-            nn.GroupNorm(1, out_channels),
+            LayerNorm2D(out_channels),
             nn.SiLU(),
         )
         self.aspp2 = nn.Sequential(
@@ -198,8 +213,8 @@ class ImageBlock(nn.Module):
     def __init__(self, in_dim, out_dim, kernel_size=7):
         super().__init__()
         padding = (kernel_size - 1) // 2
-        self.gn1 = nn.GroupNorm(1, in_dim)
-        self.gn2 = nn.GroupNorm(1, out_dim)
+        self.ln1 = LayerNorm2D(in_dim)
+        self.ln2 = LayerNorm2D(out_dim)
         self.conv = nn.Conv2d(
             in_dim,
             in_dim * 4,
@@ -219,16 +234,16 @@ class ImageBlock(nn.Module):
         resid = self.shortcut1(x)
         x = self.conv(x)
         x = F.silu(x)
-        x = self.gn1(self.fc(x) + r)
-        x = self.gn2(self.lraspp(self.se(x)) + self.shortcut2(x) + resid)
+        x = self.ln1(self.fc(x) + r)
+        x = self.ln2(self.lraspp(self.se(x)) + self.shortcut2(x) + resid)
         return x
 
 
 # 3D layers
 
 
-def VideoLayerNorm(dim, eps=1e-5):
-    return Layer2D(nn.GroupNorm(1, dim, eps=eps))
+def VideoLayerNorm(dim, eps=1e-6):
+    return Layer2D(LayerNorm2D(dim, eps))
 
 
 class ConvGRU(nn.Module):
@@ -327,14 +342,22 @@ class FullVideoAttention(nn.Module):
         return out
 
 
+def FFN3D(dim, s=2):
+    return Layer2D(FFN(dim, s))
+
+
+def ImageBlock3D(in_dim, out_dim, kernel_size=7):
+    return Layer2D(ImageBlock(in_dim, out_dim, kernel_size))
+
+
 class VideoBlock(nn.Module):
     def __init__(self, dim, heads):
         super().__init__()
-        self.image = Layer2D(ImageBlock(dim, dim))
+        self.image = ImageBlock3D(dim, dim)
         self.conv_gru = ConvGRU(dim)
         self.channel_attn = ChannelVideoAttention(dim, heads)
         self.full_attn = FullVideoAttention(dim, heads)
-        self.ffn = Layer2D(FFN(dim))
+        self.ffn = FFN3D(dim)
         self.ln1 = VideoLayerNorm(dim)
         self.ln2 = VideoLayerNorm(dim)
         self.ln3 = VideoLayerNorm(dim)

@@ -8,6 +8,7 @@ from torch.nn import functional as F
 from .ckpt import ckpt_forward
 from .layer import (
     ImageBlock,
+    ImageBlock3D,
     ImageToVideo,
     Layer2D,
     UpsampleWithRefrence,
@@ -64,7 +65,7 @@ class Decoder(nn.Module):
             cat_dim = in_dim + 2 * additional_dim
             post_blocks.append(
                 nn.Sequential(
-                    Layer2D(ImageBlock(cat_dim, out_dim)),
+                    ImageBlock3D(cat_dim, out_dim),
                     nn.Sequential(
                         *[VideoBlock(out_dim, heads) for _ in range(num_layers[i])]
                     ),
