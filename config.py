@@ -1,10 +1,10 @@
-resolution = "256:144"
+resolution = "426:240"
 skip_rate = 1
 max_len = 16
 
 num_workers = 16
 total_batch_size = 32
-train_batch_size = 16
+train_batch_size = 32
 predict_batch_size = 4
 fps = 30
 
