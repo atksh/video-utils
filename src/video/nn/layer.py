@@ -90,33 +90,17 @@ class LRASPP(nn.Module):
         return self.aspp1(x) * self.aspp2(x)
 
 
-class SoftmaxDropout(nn.Module):
-    def __init__(self, p, dim):
-        super().__init__()
-        self.p = p
-        self.dim = dim
-
-    def forward(self, score):
-        if self.training:
-            mask = torch.empty_like(score).bernoulli_(self.p).bool()
-            score = score.masked_fill(mask, NEG_INF / 2)
-        score = F.softmax(score, dim=self.dim)
-        return score
-
-
 class FFN(nn.Module):
     def __init__(self, dim, s=2):
         super().__init__()
-        self.w = nn.Conv2d(dim, dim * s * 2, kernel_size=3, padding=1, bias=False)
-        self.se = SELayer(dim * s)
-        self.lraspp = LRASPP(dim * s, dim)
+        self.wi = nn.Conv2d(dim, dim * s * 2, kernel_size=1, padding=0, bias=False)
+        self.wo = nn.Conv2d(dim * s, dim, kernel_size=1, padding=0, bias=False)
         self.act = nn.Mish()
 
     def forward(self, x):
-        x1, x2 = self.w(x).chunk(2, dim=1)
+        x1, x2 = self.wi(x).chunk(2, dim=1)
         x = x1 * self.act(x2)
-        x = self.se(x)
-        x = self.lraspp(x)
+        x = self.wo(x)
         return x
 
 
@@ -225,26 +209,27 @@ class MBConv(nn.Module):
         self.act = nn.Mish()
 
     def forward(self, x):
-        resid = x
         x = self.p1(x)
         x = self.d1(x)
         x = self.act(x)
         x = self.se(x)
         x = self.p2(x)
-        return self.ln(x + resid)
+        return x
 
 
 class ImageBlock(nn.Module):
     def __init__(self, in_dim, out_dim, kernel_size=3):
         super().__init__()
-        self.mbconv = MBConv(in_dim, kernel_size=kernel_size)
-        self.lraspp = LRASPP(in_dim, out_dim)
         self.shortcut = ShortCut(in_dim, out_dim)
+        self.lraspp = LRASPP(in_dim, out_dim)
         self.ln = LayerNorm2D(out_dim)
+        self.mbconv = MBConv(out_dim, kernel_size=kernel_size)
 
     def forward(self, x):
+        resid = self.shortcut(x)
+        x = self.lraspp(x)
         x = self.mbconv(x)
-        x = self.ln(self.lraspp(x) + self.shortcut(x))
+        x = self.ln(x + resid)
         return x
 
 
@@ -289,7 +274,6 @@ class ChannelVideoAttention(nn.Module):
         self.Q = nn.Linear(dim, dim, bias=False)
         self.K = nn.Linear(dim, dim, bias=False)
         self.V = nn.Linear(dim, dim, bias=False)
-        self.softmax = SoftmaxDropout(p=0.1, dim=-1)
 
     def forward(self, q, k, v):
         height, width = q.shape[-2:]
@@ -302,8 +286,7 @@ class ChannelVideoAttention(nn.Module):
         v = rearrange(v, "b hw m (h d) -> b hw h m d", h=self.heads)
 
         q = q * self.scale
-        attn = torch.matmul(q, k)
-        attn = self.softmax(attn)
+        attn = torch.matmul(q, k).softmax(dim=-1)
         out = torch.matmul(attn.unsqueeze(1), v)
         out = rearrange(
             out,
@@ -325,7 +308,6 @@ class FullVideoAttention(nn.Module):
         self.Q = nn.Linear(dim, dim, bias=False)
         self.K = nn.Linear(dim, dim, bias=False)
         self.V = nn.Linear(dim, dim, bias=False)
-        self.softmax = SoftmaxDropout(p=0.1, dim=-1)
 
     def forward(self, q, k, v):
         height, width = q.shape[-2:]
@@ -338,8 +320,7 @@ class FullVideoAttention(nn.Module):
         v = rearrange(v, "b hw m (h d) -> b hw h m d", h=self.heads)
 
         q = q * self.scale
-        attn = torch.matmul(q, k)
-        attn = self.softmax(attn)
+        attn = torch.matmul(q, k).softmax(dim=-1)
         out = torch.matmul(attn, v)
         out = rearrange(
             out,
