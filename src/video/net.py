@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from .dataset import VideoDataset
 from .nn.backbone import Backbone
-from .nn.model import Decoder, EncDecModel, Encoder, Loss
+from .nn.model import Decoder, MergedModel, Encoder, Loss
 
 
 class DataModule(pl.LightningDataModule):
@@ -131,7 +131,7 @@ class Model(pl.LightningModule):
             front_feat_dims, dec_num_heads, dec_num_layers, last_dim, n_steps
         )
         self.loss = Loss()
-        self.model = EncDecModel(self.backbone, self.encoder, self.decoder)
+        self.model = MergedModel(self.backbone, self.encoder, self.decoder)
 
     def forward(self, x):
         return self.model(x)

@@ -115,7 +115,7 @@ class Decoder(nn.Module):
         return l, cbcr
 
 
-class EncDecModel:
+class MergedModel:
     def __init__(
         self,
         backbone: nn.Module,
@@ -129,6 +129,7 @@ class EncDecModel:
         self.to_video = ImageToVideo()
         self.from_YCbCr420 = YCbCr420ToRGB()
 
+    @ckpt_forward
     def backbone_forward(self, x):
         bsz = x.shape[0]
         x = self.to_image(x)
@@ -136,10 +137,12 @@ class EncDecModel:
         feats = self.backbone(l, cbcr)
         return feats, bsz
 
+    @ckpt_forward
     def encode(self, video):
         feats, bsz = self.backbone_forward(video)
         return self.encoder(feats, bsz)
 
+    @ckpt_forward
     def decode(self, video, feats):
         return self.decoder(video, feats)
 
