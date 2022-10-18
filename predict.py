@@ -20,7 +20,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     resolution = "256:144"
-    batch_size = 1
+    batch_size = 4
     fps = 30
     skip_rate = 1
     max_len = 16
