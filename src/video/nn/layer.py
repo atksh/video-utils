@@ -225,18 +225,19 @@ class ImageBlock(nn.Module):
             groups=in_dim,
         )
         self.fc = nn.Conv2d(in_dim * 4, in_dim, kernel_size=1, bias=False)
-        self.se = SELayer(in_dim)
         self.lraspp = LRASPP(in_dim, out_dim)
-        self.shortcut1 = ShortCut(in_dim, out_dim)
-        self.shortcut2 = ShortCut(in_dim, out_dim)
+        self.shortcut = ShortCut(in_dim, out_dim)
+        self.se = SELayer(out_dim)
 
     def forward(self, x):
         r = x
-        resid = self.shortcut1(x)
         x = self.conv(x)
         x = F.silu(x)
         x = self.ln1(self.fc(x) + r)
-        x = self.ln2(self.lraspp(self.se(x)) + self.shortcut2(x) + resid)
+
+        r = self.shortcut(x)
+        x = self.ln2(self.lraspp(x) + r)
+        x = self.se(x)
         return x
 
 
