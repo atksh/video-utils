@@ -30,8 +30,8 @@ def RGB2YCbCr(rgb):
 
 def YCbCr2RGB(ycbcr):
     # (batch, channel, height, width)
-    bias = torch.tensor([0.0, 0.5, 0.5], dtype=rgb.dtype, device=rgb.device)
-    scale = torch.tensor([1.0, 0.872, 1.23], dtype=rgb.dtype, device=rgb.device)
+    bias = torch.tensor([0.0, 0.5, 0.5], dtype=ycbcr.dtype, device=ycbcr.device)
+    scale = torch.tensor([1.0, 0.872, 1.23], dtype=ycbcr.dtype, device=ycbcr.device)
 
     A = torch.tensor(
         [
