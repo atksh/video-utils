@@ -148,8 +148,8 @@ class Decoder(nn.Module):
 
     def loss(self, pred_l, pred_cbcr, gold):
         gt_l, gt_cbcr = self.to_YCbCr420(gold)
-        loss_l = F.binary_cross_entropy_with_logits(pred_l, gt_l)
-        loss_cbcr = F.binary_cross_entropy_with_logits(pred_cbcr, gt_cbcr) * 2
+        loss_l = F.l1_loss(pred_l, gt_l)
+        loss_cbcr = F.l1_loss(pred_cbcr, gt_cbcr) * 2
         return (loss_l + loss_cbcr) / 3
 
 
