@@ -6,8 +6,6 @@ from torch import nn
 from torch.jit import Final
 from torch.nn import functional as F
 
-from .mish import Mish
-
 NEG_INF = -5000.0
 
 
@@ -62,7 +60,7 @@ class SELayer(nn.Module):
         intermed_dim = max(dim // reduction, 4)
         self.fc = nn.Sequential(
             nn.Linear(dim, intermed_dim, bias=False),
-            Mish(),
+            nn.Mish(),
             nn.Linear(intermed_dim, dim, bias=False),
             nn.Sigmoid(),
         )
@@ -80,7 +78,7 @@ class LRASPP(nn.Module):
         self.aspp1 = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, 1, bias=False),
             LayerNorm2D(out_channels),
-            Mish(),
+            nn.Mish(),
         )
         self.aspp2 = nn.Sequential(
             nn.AdaptiveAvgPool2d(1),
@@ -112,7 +110,7 @@ class FFN(nn.Module):
         self.w = nn.Conv2d(dim, dim * s * 2, kernel_size=3, padding=1, bias=False)
         self.se = SELayer(dim * s)
         self.lraspp = LRASPP(dim * s, dim)
-        self.act = Mish()
+        self.act = nn.Mish()
 
     def forward(self, x):
         x1, x2 = self.w(x).chunk(2, dim=1)
@@ -224,7 +222,7 @@ class MBConv(nn.Module):
         self.se = SELayer(dim * s)
         self.p2 = nn.Conv2d(dim * s, dim, kernel_size=1, bias=False)
         self.ln = LayerNorm2D(dim)
-        self.act = Mish()
+        self.act = nn.Mish()
 
     def forward(self, x):
         resid = x
