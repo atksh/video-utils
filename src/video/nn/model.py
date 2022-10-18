@@ -104,6 +104,7 @@ class Decoder(nn.Module):
 
     @ckpt_forward
     def backbone_forward(self, x):
+        x = x.sigmoid()
         bsz = x.shape[0]
         x = self.to_image(x)
         l, cbcr = to_YCbCr420(x)
@@ -126,10 +127,10 @@ class Decoder(nn.Module):
 
         x = self.last_up1(x[:, -1], hr[:, -1])
         x = self.refine1(x)
-        cbcr = self.fc_cbcr(x).sigmoid()
+        cbcr = self.fc_cbcr(x)
         x = self.last_up2(x, l[:, -1])
         x = self.refine2(x)
-        l = self.fc_l(x).sigmoid()
+        l = self.fc_l(x)
 
         l = l.view(l.shape[0], self.n_steps, -1, l.shape[2], l.shape[3])
         cbcr = cbcr.view(cbcr.shape[0], self.n_steps, -1, cbcr.shape[2], cbcr.shape[3])
@@ -137,8 +138,8 @@ class Decoder(nn.Module):
 
     def loss(self, pred_l, pred_cbcr, gold):
         gt_l, gt_cbcr = self.to_YCbCr420(gold)
-        loss_l = F.l1_loss(pred_l, gt_l)
-        loss_cbcr = F.l1_loss(pred_cbcr, gt_cbcr) * 2
+        loss_l = F.binary_cross_entropy_with_logits(pred_l, gt_l)
+        loss_cbcr = F.binary_cross_entropy_with_logits(pred_cbcr, gt_cbcr) * 2
         return (loss_l + loss_cbcr) / 3
 
 
