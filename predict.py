@@ -3,6 +3,7 @@ import glob
 import os
 import shutil
 import sys
+from turtle import back
 
 import pytorch_lightning as pl
 import torch
@@ -35,8 +36,12 @@ if __name__ == "__main__":
     model = Model.load_from_checkpoint(
         ckpt_path,
         map_location="cpu",
-        n_steps=n_steps,
+        backbone_feat_dims=backbone_feat_dims,
+        front_feat_dims=front_feat_dims,
+        num_heads=num_heads,
+        num_layers=num_layers,
         last_dim=last_dim,
+        n_steps=n_steps,
     )
     model.eval()
 

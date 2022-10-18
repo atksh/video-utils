@@ -7,7 +7,7 @@ from adabelief_pytorch import AdaBelief
 from tqdm import tqdm
 
 from .dataset import VideoDataset
-from .nn.model import Decoder
+from .nn.model import EncDecModel
 
 
 class DataModule(pl.LightningDataModule):
@@ -107,9 +107,24 @@ class DataModule(pl.LightningDataModule):
 
 
 class Model(pl.LightningModule):
-    def __init__(self, last_dim=32, n_steps=1):
+    def __init__(
+        self,
+        backbone_feat_dims,
+        front_feat_dims,
+        num_heads,
+        num_layers,
+        last_dim,
+        n_steps,
+    ):
         super().__init__()
-        self.model = Decoder(last_dim, n_steps)
+        self.model = EncDecModel(
+            backbone_feat_dims,
+            front_feat_dims,
+            num_heads,
+            num_layers,
+            last_dim,
+            n_steps,
+        )
         self.loss = self.model.loss
 
     def forward(self, x):

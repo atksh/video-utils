@@ -24,7 +24,9 @@ if __name__ == "__main__":
         fps=fps,
         skip_rate=skip_rate,
     )
-    model = Model(n_steps=n_steps, last_dim=last_dim)
+    model = Model(
+        backbone_feat_dims, front_feat_dims, num_heads, num_layers, last_dim, n_steps
+    )
 
     trainer = pl.Trainer(
         accelerator="gpu",

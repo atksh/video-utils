@@ -66,3 +66,13 @@ def from_YCbCr420(l, cbcr):
     ycbcr = torch.cat([l, cbcr], dim=1)
     rgb = YCbCr2RGB(ycbcr)
     return rgb
+
+
+class RGB2YCbCr420(torch.nn.Module):
+    def forward(self, rgb):
+        return to_YCbCr420(rgb)
+
+
+class YCbCr4202RGB(torch.nn.Module):
+    def forward(self, l, cbcr):
+        return from_YCbCr420(l, cbcr)
