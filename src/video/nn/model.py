@@ -12,7 +12,7 @@ from .layer import (
     VideoBlock,
     VideoToImage,
 )
-from .utils import RGB2YCbCr420, YCbCr420ToRGB, from_YCbCr420, soft_clip, to_YCbCr420
+from .utils import RGB2YCbCr420, YCbCr420ToRGB, soft_clip, to_YCbCr420
 
 
 class Encoder(nn.Module):
