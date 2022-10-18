@@ -116,14 +116,13 @@ class Decoder(nn.Module):
         return l, cbcr
 
 
-class MergedModel(nn.Module):
+class MergedModel:
     def __init__(
         self,
         backbone: nn.Module,
         encoder: Encoder,
         decoder: Decoder,
     ):
-        super().__init__()
         self.backbone = backbone
         self.encoder = encoder
         self.decoder = decoder
@@ -145,7 +144,7 @@ class MergedModel(nn.Module):
     def decode(self, video, feats):
         return self.decoder(video, feats)
 
-    def forward(self, video):
+    def __call__(self, video):
         feats = self.encode(video)
         l, cbcr = self.decode(video, feats)
         return l, cbcr
