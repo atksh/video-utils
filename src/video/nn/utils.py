@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 
-from .layer import VideoToImage, ImageToVideo
+from .layer import ImageToVideo, VideoToImage
 
 
 def soft_clip(x, lb, ub):
