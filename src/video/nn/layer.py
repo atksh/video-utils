@@ -157,24 +157,20 @@ class MBConv(nn.Module):
     def __init__(self, dim, s=4, kernel_size=3):
         super().__init__()
         padding = (kernel_size - 1) // 2
-        self.p1 = nn.Conv2d(dim, dim * s, kernel_size=1, bias=False)
-        self.d1 = nn.Conv2d(
-            dim * s, dim * s, kernel_size=kernel_size, padding=padding, groups=dim * s
-        )
+        self.conv = nn.Conv2d(dim, dim * s, kernel_size=kernel_size, padding=padding)
         self.se = SELayer(dim * s)
-        self.p2 = nn.Conv2d(dim * s, dim, kernel_size=1, bias=False)
+        self.proj = nn.Conv2d(dim * s, dim, kernel_size=1, bias=False)
         self.act = nn.Mish()
         self.ln1 = LayerNorm2D(dim)
         self.ln2 = LayerNorm2D(dim * s)
 
     def forward(self, x):
         x = self.ln1(x)
-        x = self.p1(x)
-        x = self.d1(x)
+        x = self.conv(x)
         x = self.act(x)
         x = self.ln2(x)
         x = self.se(x)
-        x = self.p2(x)
+        x = self.proj(x)
         return x
 
 
@@ -182,7 +178,7 @@ class ImageReduction(nn.Module):
     def __init__(self, in_dim, out_dim, n_layers):
         super().__init__()
         self.skip = nn.Conv2d(in_dim, out_dim, kernel_size=1, bias=False)
-        self.gate = nn.Conv2d(in_dim, out_dim, kernel_size=3, padding=1)
+        self.gate = nn.Conv2d(in_dim, out_dim, kernel_size=1)
         self.conv = MBConv(in_dim, s=1)
         self.lraspp = LRASPP(in_dim, out_dim)
         layers = [MBConv(out_dim, s=1) for _ in range(n_layers)]
