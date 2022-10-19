@@ -97,22 +97,17 @@ class FFN(nn.Module):
 
 
 class UpsampleWithRefrence(nn.Module):
-    def __init__(self, low_dim, high_dim, scale=2, mode="nearest", align_corners=False):
+    def __init__(self, low_dim, high_dim, scale=2, mode="nearest"):
         super().__init__()
         self.mode = mode
-        self.align_corners = align_corners
         self.high_dim = high_dim
         self.to_ref = nn.Conv2d(
             low_dim, 2 * high_dim, kernel_size=3, padding=1, bias=False
         )
-        self.up = nn.Upsample(
-            scale_factor=scale, mode=mode, align_corners=align_corners
-        )
+        self.up = nn.Upsample(scale_factor=scale, mode=mode)
 
     def interpolate(self, x, **kwargs):
-        return F.interpolate(
-            x, mode=self.mode, align_corners=self.align_corners, **kwargs
-        )
+        return F.interpolate(x, mode=self.mode, **kwargs)
 
     def merge(self, lowres, highres):
         upsampled = self.up(lowres)
@@ -145,9 +140,7 @@ class UpsampleWithRefrence(nn.Module):
         ref_x = ref_xy[:, 0].softmax(dim=-1).cumsum(dim=-1)
         ref_y = ref_xy[:, 1].softmax(dim=-2).cumsum(dim=-2)
         ref_xy = torch.stack([ref_y, ref_x], dim=-1) * 2 - 1
-        out = F.grid_sample(
-            source, ref_xy, align_corners=self.align_corners, mode=self.mode
-        )
+        out = F.grid_sample(source, ref_xy, mode=self.mode)
         return out
 
 
