@@ -136,3 +136,4 @@ src/video/version.py
 lightning_logs/
 cache/
 out/
+data/

@@ -1,5 +1,5 @@
+import glob
 import sys
-from unittest import skip
 
 import pytorch_lightning as pl
 
@@ -10,7 +10,8 @@ from video.net import DataModule, Model
 
 if __name__ == "__main__":
     cache_dir = "cache"
-    path = ["video.mp4"]
+    path = glob.glob("data/*.mp4")
+    print(path)
 
     max_epochs = 1000
 
