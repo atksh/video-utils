@@ -340,7 +340,9 @@ class PreNormLastQueryFullVideoAttention(nn.Module):
     def forward(self, x):
         q = x[:, [-1]]
         q = self.ln(q)
-        return self.f(q, x, x)
+        q = self.f(q, x, x)
+        z = torch.zeros_like(x[:, :-1])
+        return torch.cat([z, q], dim=1)
 
 
 def FFN3D(dim, s=2):
@@ -387,7 +389,7 @@ class VideoBlock(nn.Module):
                     MBConv3D(dim),
                     PreNormTimeConv(dim),
                     # PreNormConvGRU(dim),
-                    # PreNormChannelVideoAttention(dim, heads),
+                    PreNormChannelVideoAttention(dim, heads),
                     PreNormLastQueryFullVideoAttention(dim, heads),
                     PreNormFFN3D(dim),
                 ]
