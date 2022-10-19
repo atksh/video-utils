@@ -124,6 +124,7 @@ class MergedModel:
         self.to_video = ImageToVideo()
         self.from_YCbCr420 = YCbCr420ToRGB()
 
+    @ckpt_forward
     def backbone_forward(self, x):
         bsz = x.shape[0]
         x = self.to_image(x)
