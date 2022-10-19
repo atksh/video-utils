@@ -55,8 +55,8 @@ class MSSSIML1Loss(nn.Module):
         return torch.outer(gaussian_vec, gaussian_vec)
 
     def forward(self, x, y):
-        x = self.to_image(x)
-        y = self.to_image(y)
+        x = self.to_image(x).float()
+        y = self.to_image(y).float()
 
         with torch.cuda.amp.autocast(enabled=False):
             mux = F.conv2d(x, self.g_masks, groups=3, padding=self.pad)
