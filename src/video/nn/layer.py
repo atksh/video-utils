@@ -16,6 +16,7 @@ class ReversibleSequential(nn.Module):
         self.layers = revlib.ReversibleSequential(*layers, split_dim=split_dim)
 
     def forward(self, x):
+        x = torch.cat([x, x], dim=self.split_dim)
         x1, x2 = self.layers(x).chunk(2, dim=self.split_dim)
         return 0.5 * (x1 + x2)
 
@@ -194,8 +195,7 @@ class ImageReduction(nn.Module):
     def forward(self, x):
         resid = self.skip(x)
         x = self.lraspp(x)
-        x1, x2 = self.layers(torch.cat([x, x], dim=1)).chunk(2, dim=1)
-        x = 0.5 * (x1 + x2)
+        x = self.layers(x)
         x = self.ln(x + resid)
         return x
 
@@ -405,7 +405,6 @@ class VideoBlock(nn.Module):
 
     def forward(self, x):
         x = torch.cat([x, x], dim=2)
-        x1, x2 = self.layers(x).chunk(2, dim=2)
-        x = 0.5 * (x1 + x2)
+        x = self.layers(x)
         x = self.post_ln(x)
         return x
