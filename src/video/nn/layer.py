@@ -185,7 +185,7 @@ class ImageReduction(nn.Module):
         super().__init__()
         self.skip = nn.Conv2d(in_dim, out_dim, kernel_size=1, bias=False)
         self.gate = nn.Conv2d(in_dim, out_dim, kernel_size=3, padding=1)
-        self.conv = MBConv(in_dim)
+        self.conv = MBConv(in_dim, s=1)
         self.lraspp = LRASPP(in_dim, out_dim)
 
     def forward(self, x):
