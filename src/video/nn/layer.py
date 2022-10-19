@@ -1,7 +1,6 @@
 import revlib
 import torch
 from einops import rearrange
-from functorch.compile import memory_efficient_fusion
 from torch import nn
 from torch.nn import functional as F
 
@@ -11,7 +10,7 @@ NEG_INF = -5000.0
 class ReversibleSequential(nn.Module):
     def __init__(self, layers, split_dim):
         super().__init__()
-        layers = [memory_efficient_fusion(layer) for layer in layers]
+        layers = [torch.jit.script(layer) for layer in layers]
         self.split_dim = split_dim
         self.layers = revlib.ReversibleSequential(*layers, split_dim=split_dim)
 
@@ -23,14 +22,14 @@ class ReversibleSequential(nn.Module):
 
 class VideoToImage(nn.Module):
     def forward(self, x):
-        """(batch_size, seq_len, channel, height, width) -> (batch_size * seq_len, channel, height, width)"""
-        return rearrange(x, "b s c h w -> (b s) c h w")
+        c, h, w = x.shape[2:]
+        return x.view(-1, c, h, w)
 
 
 class ImageToVideo(nn.Module):
-    def forward(self, x, batch_size):
-        """(batch_size * seq_len, channel, height, width) -> (batch_size, seq_len, channel, height, width)"""
-        return rearrange(x, "(b s) c h w -> b s c h w", b=batch_size)
+    def forward(self, x, batch_size: int):
+        c, h, w = x.shape[1:]
+        return x.view(batch_size, -1, c, h, w)
 
 
 class Layer2D(nn.Module):
@@ -44,6 +43,21 @@ class Layer2D(nn.Module):
         bsz = args[0].shape[0]
         new_args = [self.to_image(arg) for arg in args]
         x = self.module(*new_args)
+        x = self.to_video(x, bsz)
+        return x
+
+
+class SimpleLayer2D(nn.Module):
+    def __init__(self, module):
+        super().__init__()
+        self.module = module
+        self.to_image = VideoToImage()
+        self.to_video = ImageToVideo()
+
+    def forward(self, x):
+        bsz = x.shape[0]
+        x = self.to_image(x)
+        x = self.module(x)
         x = self.to_video(x, bsz)
         return x
 
@@ -204,7 +218,7 @@ class ImageReduction(nn.Module):
 
 
 def VideoLayerNorm(dim, eps=1e-6):
-    return Layer2D(LayerNorm2D(dim, eps))
+    return SimpleLayer2D(LayerNorm2D(dim, eps))
 
 
 class ConvGRU(nn.Module):
@@ -238,10 +252,13 @@ class TimeConv(nn.Module):
 
     def forward(self, video):
         b, _, _, h, w = video.shape
-        video = rearrange(video, "b t c h w -> (b h w) c t")
+        # b t c h w -> (b h w) c t"
+        video = video.permute(0, 3, 4, 1, 2).reshape(-1, video.shape[1], video.shape[2])
         video = F.pad(video, (1, 0))
         video = self.conv(video)
-        video = rearrange(video, "(b h w) c t -> b t c h w", h=h, w=w, b=b)
+        # (b h w) c t -> b t c h w, h=h, w=w, b=b
+        video = video.reshape(b, h, w, video.shape[1], video.shape[2])
+        video = video.permute(0, 3, 4, 1, 2)
         return video
 
 
@@ -260,21 +277,25 @@ class ChannelVideoAttention(nn.Module):
         height, width = q.shape[-2:]
         q = self.Q(q.mean(dim=[-1, -2]))  # (batch_size, len_s, dim)
         k = self.K(k.mean(dim=[-1, -2]))  # (batch_size, len_t, dim)
-        v = self.V(rearrange(v, "b m c h w -> b (h w) m c"))
+        # b m c h w -> b (h w) m c
+        v = v.permute(0, 2, 3, 4, 1).reshape(q.shape[0], -1, self.heads, q.shape[-1])
+        v = self.V(v)
 
-        q = rearrange(q, "b n (h d) -> b h n d", h=self.heads)
-        k = rearrange(k, "b m (h d) -> b h d m", h=self.heads)
-        v = rearrange(v, "b hw m (h d) -> b hw h m d", h=self.heads)
+        q = q.reshape(q.shape[0], q.shape[1], self.heads, q.shape[-1]).permute(
+            0, 2, 1, 3
+        )
+        k = k.reshape(k.shape[0], k.shape[1], self.heads, k.shape[-1]).permute(
+            0, 2, 3, 1
+        )
+        # b hw m (h d) -> b hw h m d, h=self.heads
+        v = v.permute(0, 1, 3, 2)
 
         q = q * self.scale
         attn = torch.matmul(q, k).softmax(dim=-1)
         out = torch.matmul(attn.unsqueeze(1), v)
-        out = rearrange(
-            out,
-            "b (height width) h n d -> b n (h d) height width",
-            h=self.heads,
-            height=height,
-            width=width,
+        # b (height width) h n d -> b n (h d) height width
+        out = out.permute(0, 2, 1, 3).reshape(
+            q.shape[0], -1, self.heads * q.shape[-1], height, width
         )
         return out
 
@@ -292,23 +313,30 @@ class FullVideoAttention(nn.Module):
 
     def forward(self, q, k, v):
         height, width = q.shape[-2:]
-        q = self.Q(rearrange(q, "b m c h w -> b (h w) m c"))
-        k = self.K(rearrange(k, "b m c h w -> b (h w) m c"))
-        v = self.V(rearrange(v, "b m c h w -> b (h w) m c"))
+        # b m c h w -> b (h w) m c
+        q = q.permute(0, 2, 3, 4, 1).reshape(q.shape[0], -1, self.heads, q.shape[-1])
+        k = k.permute(0, 2, 3, 4, 1).reshape(k.shape[0], -1, self.heads, k.shape[-1])
+        v = v.permute(0, 2, 3, 4, 1).reshape(v.shape[0], -1, self.heads, v.shape[-1])
+        q = self.Q(q)
+        k = self.K(k)
+        v = self.V(v)
 
-        q = rearrange(q, "b hw n (h d) -> b hw h n d", h=self.heads)
-        k = rearrange(k, "b hw m (h d) -> b hw h d m", h=self.heads)
-        v = rearrange(v, "b hw m (h d) -> b hw h m d", h=self.heads)
+        q = q.reshape(q.shape[0], q.shape[1], self.heads, q.shape[-1]).permute(
+            0, 2, 1, 3
+        )
+        k = k.reshape(k.shape[0], k.shape[1], self.heads, k.shape[-1]).permute(
+            0, 2, 3, 1
+        )
+        v = v.reshape(v.shape[0], v.shape[1], self.heads, v.shape[-1]).permute(
+            0, 2, 1, 3
+        )
 
         q = q * self.scale
         attn = torch.matmul(q, k).softmax(dim=-1)
         out = torch.matmul(attn, v)
-        out = rearrange(
-            out,
-            "b (height width) h n d -> b n (h d) height width",
-            h=self.heads,
-            height=height,
-            width=width,
+        # b (height width) h n d -> b n (h d) height width
+        out = out.permute(0, 2, 1, 3).reshape(
+            q.shape[0], -1, self.heads * q.shape[-1], height, width
         )
         return out
 
@@ -350,7 +378,7 @@ class PreNormLastQueryFullVideoAttention(nn.Module):
 
 
 def FFN3D(dim, s=2):
-    return Layer2D(FFN(dim, s))
+    return SimpleLayer2D(FFN(dim, s))
 
 
 class PreNormFFN3D(nn.Module):
@@ -376,11 +404,11 @@ class PreNormTimeConv(nn.Module):
 
 
 def MBConv3D(dim, s=4):
-    return Layer2D(MBConv(dim, s))
+    return SimpleLayer2D(MBConv(dim, s))
 
 
 def ImageReduction3D(in_dim, out_dim, n_layers):
-    return Layer2D(ImageReduction(in_dim, out_dim, n_layers))
+    return SimpleLayer2D(ImageReduction(in_dim, out_dim, n_layers))
 
 
 class VideoBlock(nn.Module):
