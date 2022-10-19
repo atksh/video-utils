@@ -168,7 +168,7 @@ class MBConv(nn.Module):
         self.p2 = nn.Conv2d(dim * s, dim, kernel_size=1, bias=False)
         self.act = nn.Mish()
         self.ln1 = LayerNorm2D(dim)
-        self.ln2 = LayerNorm2D(dim * 4)
+        self.ln2 = LayerNorm2D(dim * s)
 
     def forward(self, x):
         resid = x
@@ -320,34 +320,38 @@ def ImageBlock3D(in_dim, out_dim, kernel_size=3):
     return Layer2D(ImageBlock(in_dim, out_dim, kernel_size))
 
 
+class PreNorm3D(nn.Module):
+    def __init__(self, dim, fn):
+        super().__init__()
+        self.norm = VideoLayerNorm(dim)
+        self.fn = fn
+
+    def forward(self, x):
+        return x + self.fn(self.norm(x))
+
+
 class VideoBlock(nn.Module):
     def __init__(self, dim, heads):
         super().__init__()
         self.pre = ImageBlock3D(dim, dim)
         self.post = ImageBlock3D(dim, dim)
-        self.conv_gru = ConvGRU(dim)
-        self.channel_attn = ChannelVideoAttention(dim, heads)
-        self.full_attn = FullVideoAttention(dim, heads)
-        self.ffn = FFN3D(dim)
-        self.ln1 = VideoLayerNorm(dim)
-        self.ln2 = VideoLayerNorm(dim)
-        self.ln3 = VideoLayerNorm(dim)
-        self.ln4 = VideoLayerNorm(dim)
+        self.conv_gru = PreNorm3D(dim, ConvGRU(dim))
+        self.channel_attn = PreNorm3D(dim, ChannelVideoAttention(dim, heads))
+        self.full_attn = PreNorm3D(dim, FullVideoAttention(dim, heads))
+        self.ffn = PreNorm3D(dim, FFN3D(dim))
 
-    def last_only_forward(self, f, ln, x):
+    def last_only_forward(self, f, x):
         q = x[:, [-1]]
-        q = ln(f(q) + q)
-        x = torch.cat([x[:, :-1], q], dim=1)
+        x = torch.cat([x[:, :-1], f(q)], dim=1)
         return x
 
     def forward(self, x):
         # x: (batch_size, len, dim, height, width)
         x = self.pre(x)
-        resid = x
-        x = self.ln1(x + self.conv_gru(x))
-        x = self.ln2(x + self.channel_attn(x, x, x))
+        x = self.conv_gru(x)
+        x = self.channel_attn(x)
         full_attn = lambda q: self.full_attn(q, x, x)
-        x = self.last_only_forward(full_attn, self.ln3, x)
-        x = self.ln4(x + self.ffn(x) + resid)
+        x = self.last_only_forward(full_attn, x)
+        x = self.ffn(x)
         x = self.post(x)
         return x
