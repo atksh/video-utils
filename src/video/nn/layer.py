@@ -1,6 +1,5 @@
 import revlib
 import torch
-from einops import rearrange
 from torch import nn
 from torch.nn import functional as F
 
@@ -251,14 +250,14 @@ class TimeConv(nn.Module):
         self.conv = nn.Conv1d(dim, dim, 2, bias=False, padding=0)
 
     def forward(self, video):
-        b, _, _, h, w = video.shape
+        b, l, c, h, w = video.shape
         # b t c h w -> (b h w) c t"
-        video = video.permute(0, 3, 4, 1, 2).reshape(-1, video.shape[1], video.shape[2])
+        video = video.permute(0, 3, 4, 1, 2).reshape(-1, c, l)
         video = F.pad(video, (1, 0))
         video = self.conv(video)
         # (b h w) c t -> b t c h w, h=h, w=w, b=b
-        video = video.reshape(b, h, w, video.shape[1], video.shape[2])
-        video = video.permute(0, 3, 4, 1, 2)
+        video = video.reshape(b, h, w, c, l)
+        video = video.permute(0, 4, 3, 1, 2)
         return video
 
 
@@ -274,29 +273,26 @@ class ChannelVideoAttention(nn.Module):
         self.V = nn.Linear(dim, dim, bias=False)
 
     def forward(self, q, k, v):
+        bsz = q.shape[0]
+        len_s = q.shape[1]
+        len_t = k.shape[1]
         height, width = q.shape[-2:]
         q = self.Q(q.mean(dim=[-1, -2]))  # (batch_size, len_s, dim)
         k = self.K(k.mean(dim=[-1, -2]))  # (batch_size, len_t, dim)
         # b m c h w -> b (h w) m c
-        v = v.permute(0, 2, 3, 4, 1).reshape(q.shape[0], -1, self.heads, q.shape[-1])
+        v = v.permute(0, 3, 4, 1, 2).reshape(bsz, height * width, len_t, -1)
         v = self.V(v)
 
-        q = q.reshape(q.shape[0], q.shape[1], self.heads, q.shape[-1]).permute(
-            0, 2, 1, 3
-        )
-        k = k.reshape(k.shape[0], k.shape[1], self.heads, k.shape[-1]).permute(
-            0, 2, 3, 1
-        )
-        # b hw m (h d) -> b hw h m d, h=self.heads
-        v = v.permute(0, 1, 3, 2)
+        q = q.reshape(bsz, len_s, self.heads, -1).permute(0, 2, 1, 3)
+        k = k.reshape(bsz, len_t, self.heads, -1).permute(0, 2, 3, 1)
+        v = v.reshape(bsz, height * width, len_t, self.heads, -1)
+        v = v.permute(0, 1, 3, 2, 4)
 
         q = q * self.scale
         attn = torch.matmul(q, k).softmax(dim=-1)
         out = torch.matmul(attn.unsqueeze(1), v)
         # b (height width) h n d -> b n (h d) height width
-        out = out.permute(0, 2, 1, 3).reshape(
-            q.shape[0], -1, self.heads * q.shape[-1], height, width
-        )
+        out = out.permute(0, 3, 2, 4, 1).reshape(bsz, len_s, -1, height, width)
         return out
 
 
@@ -312,32 +308,30 @@ class FullVideoAttention(nn.Module):
         self.V = nn.Linear(dim, dim, bias=False)
 
     def forward(self, q, k, v):
+        bsz = q.shape[0]
+        len_s = q.shape[1]
+        len_t = k.shape[1]
         height, width = q.shape[-2:]
         # b m c h w -> b (h w) m c
-        q = q.permute(0, 2, 3, 4, 1).reshape(q.shape[0], -1, self.heads, q.shape[-1])
-        k = k.permute(0, 2, 3, 4, 1).reshape(k.shape[0], -1, self.heads, k.shape[-1])
-        v = v.permute(0, 2, 3, 4, 1).reshape(v.shape[0], -1, self.heads, v.shape[-1])
+        q = q.permute(0, 3, 4, 1, 2).reshape(bsz, height * width, len_s, -1)
+        k = k.permute(0, 3, 4, 1, 2).reshape(bsz, height * width, len_t, -1)
+        v = v.permute(0, 3, 4, 1, 2).reshape(bsz, height * width, len_t, -1)
         q = self.Q(q)
         k = self.K(k)
         v = self.V(v)
 
-        q = q.reshape(q.shape[0], q.shape[1], self.heads, q.shape[-1]).permute(
-            0, 2, 1, 3
-        )
-        k = k.reshape(k.shape[0], k.shape[1], self.heads, k.shape[-1]).permute(
-            0, 2, 3, 1
-        )
-        v = v.reshape(v.shape[0], v.shape[1], self.heads, v.shape[-1]).permute(
-            0, 2, 1, 3
-        )
+        q = q.reshape(bsz, height * width, len_s, self.heads, -1)
+        q = q.permute(0, 3, 1, 2, 4)
+        k = k.reshape(bsz, height * width, len_t, self.heads, -1)
+        k = k.permute(0, 3, 1, 4, 2)
+        v = v.reshape(bsz, height * width, len_t, self.heads, -1)
+        v = v.permute(0, 3, 1, 2, 4)
 
         q = q * self.scale
         attn = torch.matmul(q, k).softmax(dim=-1)
         out = torch.matmul(attn, v)
         # b (height width) h n d -> b n (h d) height width
-        out = out.permute(0, 2, 1, 3).reshape(
-            q.shape[0], -1, self.heads * q.shape[-1], height, width
-        )
+        out = out.permute(0, 2, 3, 4, 1).reshape(bsz, len_s, -1, height, width)
         return out
 
 
