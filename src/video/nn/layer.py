@@ -1,11 +1,9 @@
-import math
-from turtle import forward
-
 import torch
 from einops import rearrange
 from torch import nn
-from torch.jit import Final
 from torch.nn import functional as F
+
+from .ckpt import ckpt_forward
 
 NEG_INF = -5000.0
 
@@ -326,8 +324,8 @@ class PreNorm3D(nn.Module):
         self.norm = VideoLayerNorm(dim)
         self.fn = fn
 
-    def forward(self, x):
-        return x + self.fn(self.norm(x))
+    def forward(self, x, *args, **kwargs):
+        return x + self.fn(self.norm(x), *args, **kwargs)
 
 
 class VideoBlock(nn.Module):
@@ -345,11 +343,12 @@ class VideoBlock(nn.Module):
         x = torch.cat([x[:, :-1], f(q)], dim=1)
         return x
 
+    @ckpt_forward
     def forward(self, x):
         # x: (batch_size, len, dim, height, width)
         x = self.pre(x)
         x = self.conv_gru(x)
-        x = self.channel_attn(x)
+        x = self.channel_attn(x, x, x)
         full_attn = lambda q: self.full_attn(q, x, x)
         x = self.last_only_forward(full_attn, x)
         x = self.ffn(x)
