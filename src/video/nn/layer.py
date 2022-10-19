@@ -97,7 +97,7 @@ class FFN(nn.Module):
 
 
 class Upsample(nn.Module):
-    def __init__(self, scale=2, mode="bilinear", align_corners=True):
+    def __init__(self, scale=2, mode="bilinear", align_corners=False):
         super().__init__()
         self.scale = scale
         self.mode = mode
@@ -120,7 +120,9 @@ class Upsample(nn.Module):
 
 
 class UpsampleWithRefrence(Upsample):
-    def __init__(self, low_dim, high_dim, scale=2, mode="bilinear", align_corners=True):
+    def __init__(
+        self, low_dim, high_dim, scale=2, mode="bilinear", align_corners=False
+    ):
         super().__init__(scale, mode, align_corners)
         self.high_dim = high_dim
         self.to_ref = nn.Conv2d(
@@ -149,7 +151,7 @@ class UpsampleWithRefrence(Upsample):
         ref_x = ref_xy[:, 0].softmax(dim=-1).cumsum(dim=-1)
         ref_y = ref_xy[:, 1].softmax(dim=-2).cumsum(dim=-2)
         ref_xy = torch.stack([ref_y, ref_x], dim=-1) * 2 - 1
-        out = F.grid_sample(source, ref_xy, align_corners=True)
+        out = F.grid_sample(source, ref_xy, align_corners=False)
         return out
 
 
