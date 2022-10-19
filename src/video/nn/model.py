@@ -77,6 +77,7 @@ class Decoder(nn.Module):
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
         self.to_YCbCr420 = RGB2YCbCr420()
+        self.from_YCbCr420 = YCbCr420ToRGB()
 
         self.avg_pool = Layer2D(nn.AvgPool2d(2, 2))
 
@@ -109,7 +110,10 @@ class Decoder(nn.Module):
 
         l = l.view(l.shape[0], self.n_steps, -1, l.shape[2], l.shape[3])
         cbcr = cbcr.view(cbcr.shape[0], self.n_steps, -1, cbcr.shape[2], cbcr.shape[3])
-        return l, cbcr
+        l = l.sigmoid()
+        cbcr = cbcr.sigmoid()
+        rgb = self.from_YCbCr420(l, cbcr)
+        return rgb
 
 
 class MergedModel:
@@ -124,7 +128,6 @@ class MergedModel:
         self.decoder = decoder
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
-        self.from_YCbCr420 = YCbCr420ToRGB()
 
     @ckpt_forward
     def backbone_forward(self, x):
@@ -143,21 +146,5 @@ class MergedModel:
 
     def __call__(self, video):
         feats = self.encode(video)
-        l, cbcr = self.decode(video, feats)
-        return l, cbcr
-
-    def inference(self, video):
-        l, cbcr = map(torch.sigmoid, self(video))
-        rgb = self.from_YCbCr420(l, cbcr)
+        rgb = self.decode(video, feats)
         return rgb
-
-
-class Loss:
-    def __init__(self):
-        self.to_YCbCr420 = RGB2YCbCr420()
-
-    def __call__(self, pred_l, pred_cbcr, gold):
-        gt_l, gt_cbcr = self.to_YCbCr420(gold)
-        loss_l = F.binary_cross_entropy_with_logits(pred_l, gt_l)
-        loss_cbcr = F.binary_cross_entropy_with_logits(pred_cbcr, gt_cbcr) * 2
-        return (loss_l + loss_cbcr) / 3

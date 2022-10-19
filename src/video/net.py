@@ -8,7 +8,8 @@ from tqdm import tqdm
 
 from .dataset import VideoDataset
 from .nn.backbone import Backbone
-from .nn.model import Decoder, Encoder, Loss, MergedModel
+from .nn.loss import MSSSIML1Loss
+from .nn.model import Decoder, Encoder, MergedModel
 
 
 class DataModule(pl.LightningDataModule):
@@ -130,7 +131,7 @@ class Model(pl.LightningModule):
         self.decoder = Decoder(
             front_feat_dims, dec_num_heads, dec_num_layers, last_dim, n_steps
         )
-        self.loss = Loss()
+        self.loss = MSSSIML1Loss()
         self.model = MergedModel(self.backbone, self.encoder, self.decoder)
 
     def forward(self, x):
@@ -138,22 +139,22 @@ class Model(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, y = batch
-        l, cbcr = self.model(x)
-        loss = self.loss(l, cbcr, y)
+        pred = self.model(x)
+        loss = self.loss(pred, y)
         self.log("train_loss", loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
-        l, cbcr = self.model(x)
-        loss = self.loss(l, cbcr, y)
+        pred = self.model(x)
+        loss = self.loss(pred, y)
         self.log("val_loss", loss)
         return loss
 
     def predict_step(self, batch, batch_idx):
         video, y = batch
         with torch.inference_mode():
-            preds = self.model.inference(video)
+            preds = self.model(video)
             preds = (preds * 255).to(torch.uint8)
             y = (y * 255).to(torch.uint8)
         return preds, y
