@@ -235,7 +235,7 @@ class TimeConv(nn.Module):
     def forward(self, video):
         b, _, _, h, w = video.shape
         video = rearrange(video, "b t c h w -> (b h w) c t")
-        video = F.pad(video, (1, 0), mode="replicate")
+        video = F.pad(video, (1, 0))
         video = self.conv(video)
         video = rearrange(video, "(b h w) c t -> b t c h w", h=h, w=w, b=b)
         return video
