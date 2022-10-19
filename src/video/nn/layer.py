@@ -189,7 +189,7 @@ class ImageReduction(nn.Module):
         self.skip = nn.Conv2d(in_dim, out_dim, kernel_size=1, bias=False)
         self.lraspp = LRASPP(in_dim, out_dim)
         layers = [MBConv(out_dim) for _ in range(n_layers)]
-        self.layers = ReversibleSequential(*layers, split_dim=1)
+        self.layers = ReversibleSequential(layers, split_dim=1)
         self.ln = LayerNorm2D(out_dim)
 
     def forward(self, x):
