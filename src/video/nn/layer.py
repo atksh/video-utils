@@ -40,7 +40,7 @@ class ReversibleSequential(nn.Module):
         x1, x2 = self.layers(x).chunk(2, dim=self.split_dim)
         s = self.sigmoid(self.s)
         x = s * x1 + (1 - s) * x2
-        return s
+        return x
 
 
 class VideoToImage(nn.Module):
