@@ -104,10 +104,10 @@ class UpsampleWithRefrence(nn.Module):
         self.to_ref = nn.Conv2d(
             low_dim, 2 * high_dim, kernel_size=3, padding=1, bias=False
         )
-        self.up = nn.Upsample(scale_factor=scale, mode=mode)
+        self.up = nn.Upsample(scale_factor=scale, mode=mode, align_corners=True)
 
     def interpolate(self, x, **kwargs):
-        return F.interpolate(x, mode=self.mode, **kwargs)
+        return F.interpolate(x, mode=self.mode, align_corners=True, **kwargs)
 
     def merge(self, lowres, highres):
         upsampled = self.up(lowres)
@@ -140,7 +140,7 @@ class UpsampleWithRefrence(nn.Module):
         ref_x = ref_xy[:, 0].softmax(dim=-1).cumsum(dim=-1)
         ref_y = ref_xy[:, 1].softmax(dim=-2).cumsum(dim=-2)
         ref_xy = torch.stack([ref_y, ref_x], dim=-1) * 2 - 1
-        out = F.grid_sample(source, ref_xy, mode=self.mode)
+        out = F.grid_sample(source, ref_xy, mode=self.mode, align_corners=True)
         return out
 
 
