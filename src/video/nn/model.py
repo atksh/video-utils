@@ -31,7 +31,7 @@ class Encoder(nn.Module):
             in_dim = backbone_feat_dims[i]
             inner_dim = front_feat_dims[i]
             heads = num_heads[i]
-            feat_blocks.append(ImageReduction(in_dim, inner_dim, 3))
+            feat_blocks.append(ImageReduction(in_dim, inner_dim, num_layers[1]))
             feat_time_blocks.append(VideoBlock(inner_dim, heads, num_layers[i]))
         self.feat_blocks = nn.ModuleList(feat_blocks)
         self.feat_time_blocks = nn.ModuleList(feat_time_blocks)
@@ -61,7 +61,7 @@ class Decoder(nn.Module):
             cat_dim = in_dim + 2 * additional_dim
             post_blocks.append(
                 nn.Sequential(
-                    ImageReduction3D(cat_dim, out_dim, 3),
+                    ImageReduction3D(cat_dim, out_dim, num_layers[i]),
                     VideoBlock(out_dim, heads, num_layers[i]),
                 )
             )

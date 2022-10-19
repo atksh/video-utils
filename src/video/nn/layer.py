@@ -186,14 +186,16 @@ class ImageReduction(nn.Module):
         self.conv = MBConv(in_dim, s=1)
         self.lraspp = LRASPP(in_dim, out_dim)
         layers = [MBConv(out_dim, s=1) for _ in range(n_layers)]
-        self.layers = revlib.ReversibleSequential(*layers)
+        self.layers = revlib.ReversibleSequential(*layers, split_dim=1)
+        self.ln = LayerNorm2D(out_dim)
 
     def forward(self, x):
         z = self.skip(x)
         i = self.gate(x).sigmoid()
         x = self.lraspp(self.conv(x))
-        x1, x2 = self.layers(x)
+        x1, x2 = self.layers(torch.cat([x, x], dim=1)).chunk(2, dim=1)
         x = 0.5 * (x1 + x2)
+        x = self.ln(x)
         x = x * i + z * (1 - i)
         return x
 
