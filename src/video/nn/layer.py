@@ -38,7 +38,7 @@ class ReversibleSequential(nn.Module):
     def forward(self, x):
         x = torch.cat([x, x], dim=self.split_dim)
         x1, x2 = self.layers(x).chunk(2, dim=self.split_dim)
-        s = self.sigmoid(s)
+        s = self.sigmoid(self.s)
         x = s * x1 + (1 - s) * x2
         return s
 
