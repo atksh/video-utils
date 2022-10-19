@@ -1,5 +1,5 @@
 resolution = "426:240"
-skip_rate = 4
+skip_rate = 8
 max_len = 32
 
 num_workers = 16
