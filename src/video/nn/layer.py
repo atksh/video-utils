@@ -333,7 +333,8 @@ class VideoBlock(nn.Module):
         self.ln4 = VideoLayerNorm(dim)
 
     def last_only_forward(self, f, x):
-        q = f(x[:, [-1]])
+        q = x[:, [-1]]
+        q = q + f(q)
         x = torch.cat([x[:, :-1], q], dim=1)
         return x
 
