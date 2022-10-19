@@ -16,6 +16,9 @@ from config import *
 from video.dataset import VideoDatasetForInference
 from video.net import Model
 
+
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("version", type=int)
