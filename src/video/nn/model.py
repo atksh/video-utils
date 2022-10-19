@@ -110,8 +110,9 @@ class Decoder(nn.Module):
 
         l = l.view(l.shape[0], self.n_steps, -1, l.shape[2], l.shape[3])
         cbcr = cbcr.view(cbcr.shape[0], self.n_steps, -1, cbcr.shape[2], cbcr.shape[3])
-        l = l.sigmoid()
-        cbcr = cbcr.sigmoid()
+        with torch.cuda.amp.autocast(enabled=False):
+            l = l.float().sigmoid()
+            cbcr = cbcr.float().sigmoid()
         rgb = self.from_YCbCr420(l, cbcr)
         return rgb
 

@@ -11,7 +11,7 @@ class MSSSIML1Loss(nn.Module):
         gaussian_sigmas=[0.5, 1.0, 2.0, 4.0, 8.0],
         data_range=1.0,
         K=(0.01, 0.03),
-        alpha=0.84,
+        alpha=0.5,
     ):
         super().__init__()
         self.DR = data_range
