@@ -228,16 +228,14 @@ class ConvGRU(nn.Module):
 
 
 class TimeConv(nn.Module):
-    def __init__(self, dim, kernel_size=3):
+    def __init__(self, dim):
         super().__init__()
-        padding = (kernel_size - 1) // 2
-        self.conv = nn.Conv1d(
-            dim, dim, kernel_size=kernel_size, padding=padding, bias=False
-        )
+        self.conv = nn.Conv1d(dim, dim, 2, bias=False, padding=0)
 
     def forward(self, video):
         b, _, _, h, w = video.shape
         video = rearrange(video, "b t c h w -> (b h w) c t")
+        video = F.pad(video, (1, 0), mode="replicate")
         video = self.conv(video)
         video = rearrange(video, "(b h w) c t -> b t c h w", h=h, w=w, b=b)
         return video
@@ -361,10 +359,10 @@ class PreNormFFN3D(nn.Module):
 
 
 class PreNormTimeConv(nn.Module):
-    def __init__(self, dim, kernel_size=3):
+    def __init__(self, dim):
         super().__init__()
         self.ln = VideoLayerNorm(dim)
-        self.f = TimeConv(dim, kernel_size)
+        self.f = TimeConv(dim)
 
     def forward(self, x):
         x = self.ln(x)
