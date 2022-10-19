@@ -57,10 +57,13 @@ if __name__ == "__main__":
 
     shutil.rmtree("out", ignore_errors=True)
     os.makedirs("out", exist_ok=True)
-    for t in range(n_steps):
-        os.makedirs(f"out/{t}", exist_ok=True)
-        for i, (pred, gold) in enumerate(zip(preds, golds)):
+    for i, (pred, gold) in enumerate(zip(preds, golds)):
+        imgs = []
+        for t in range(n_steps):
             # stack with height
             img = np.concatenate([gold[t], pred[t]], axis=0)
-            img = Image.fromarray(img)
-            img.save(f"out/{t}/{i}.png")
+            imgs.append(img)
+        # stack with width
+        img = np.concatenate(imgs, axis=1)
+        img = Image.fromarray(img)
+        img.save(f"out/{i}.png")
