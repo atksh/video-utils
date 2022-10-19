@@ -12,7 +12,6 @@ class MSSSIML1Loss(nn.Module):
         data_range=1.0,
         K=(0.01, 0.03),
         alpha=0.84,
-        compensation=200.0,
     ):
         super().__init__()
         self.DR = data_range
@@ -20,7 +19,6 @@ class MSSSIML1Loss(nn.Module):
         self.C2 = (K[1] * data_range) ** 2
         self.pad = int(2 * gaussian_sigmas[-1])
         self.alpha = alpha
-        self.compensation = compensation
         filter_size = int(4 * gaussian_sigmas[-1] + 1)
         g_masks = torch.zeros((3 * len(gaussian_sigmas), 1, filter_size, filter_size))
         for idx, sigma in enumerate(gaussian_sigmas):
@@ -29,7 +27,6 @@ class MSSSIML1Loss(nn.Module):
             g_masks[3 * idx + 1, 0, :, :] = self._fspecial_gauss_2d(filter_size, sigma)
             g_masks[3 * idx + 2, 0, :, :] = self._fspecial_gauss_2d(filter_size, sigma)
         self.g_masks = nn.Parameter(g_masks, requires_grad=False)
-
         self.to_image = VideoToImage()
 
     def _fspecial_gauss_1d(self, size, sigma):
@@ -93,6 +90,5 @@ class MSSSIML1Loss(nn.Module):
         )  # [B, H, W]
 
         loss_mix = self.alpha * loss_ms_ssim + (1 - self.alpha) * gaussian_l1 / self.DR
-        loss_mix = self.compensation * loss_mix
 
         return loss_mix.mean()
