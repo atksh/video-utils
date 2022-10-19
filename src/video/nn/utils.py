@@ -4,6 +4,21 @@ import torch.nn.functional as F
 from .layer import ImageToVideo, VideoToImage
 
 
+@torch.jit.script
+def gamma_correction(x):
+    x1 = x / 12.92
+    x2 = ((x + 0.055) / 1.055) ** 2.4
+    x = torch.where(x <= 0.04045, x1, x2)
+    return x
+
+
+@torch.jit.script
+def inverse_gamma_correction(x):
+    x1 = x * 12.92
+    x2 = 1.055 * x ** (1 / 2.4) - 0.055
+    x = torch.where(x <= 0.0031308, x1, x2)
+
+
 def soft_clip(x, lb, ub):
     y = torch.clamp(x, lb, ub)
     if x.requires_grad:
@@ -51,6 +66,7 @@ def YCbCr2RGB(ycbcr):
 
 
 def to_YCbCr420(rgb):
+    rgb = inverse_gamma_correction(rgb)
     ycbcr = RGB2YCbCr(rgb)
     l = ycbcr[:, [0], :, :]
     cb = F.avg_pool2d(ycbcr[:, [1], :, :], kernel_size=2, stride=2)
@@ -67,6 +83,7 @@ def from_YCbCr420(l, cbcr):
     cbcr = torch.cat([cb, cr], dim=1)
     ycbcr = torch.cat([l, cbcr], dim=1)
     rgb = YCbCr2RGB(ycbcr)
+    rgb = gamma_correction(rgb)
     return rgb
 
 
