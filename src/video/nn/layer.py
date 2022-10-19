@@ -404,7 +404,6 @@ class VideoBlock(nn.Module):
         self.post_ln = VideoLayerNorm(dim)
 
     def forward(self, x):
-        x = torch.cat([x, x], dim=2)
         x = self.layers(x)
         x = self.post_ln(x)
         return x
