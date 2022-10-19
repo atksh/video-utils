@@ -1,11 +1,9 @@
-import math
-from turtle import forward
-
 import torch
 from einops import rearrange
 from torch import nn
-from torch.jit import Final
 from torch.nn import functional as F
+
+from video.nn.ckpt import ckpt_forward
 
 NEG_INF = -5000.0
 
@@ -339,6 +337,7 @@ class VideoBlock(nn.Module):
         x = torch.cat([x[:, :-1], q], dim=1)
         return x
 
+    @ckpt_forward
     def forward(self, x):
         # x: (batch_size, len, dim, height, width)
         x = self.pre(x)
