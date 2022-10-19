@@ -388,10 +388,12 @@ class VideoBlock(nn.Module):
                 [
                     MBConv3D(dim),
                     PreNormTimeConv(dim),
-                    # PreNormConvGRU(dim),
+                    PreNormConvGRU(dim),
                     PreNormChannelVideoAttention(dim, heads),
+                    MBConv3D(dim),
                     PreNormLastQueryFullVideoAttention(dim, heads),
                     PreNormFFN3D(dim),
+                    MBConv3D(dim),
                 ]
             )
 
