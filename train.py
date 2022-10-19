@@ -2,6 +2,7 @@ import glob
 import sys
 
 import pytorch_lightning as pl
+from pytorch_lightning.callbacks import ModelCheckpoint
 
 sys.path.append("src")
 
@@ -37,6 +38,7 @@ if __name__ == "__main__":
         n_steps,
     )
 
+    checkpoint_callback = ModelCheckpoint(save_last=True, every_n_train_steps=100)
     trainer = pl.Trainer(
         accelerator="gpu",
         devices=1,
@@ -47,11 +49,11 @@ if __name__ == "__main__":
         benchmark=True,
         deterministic=False,
         check_val_every_n_epoch=1,
-        enable_checkpointing=True,
         gradient_clip_val=1.0,
         gradient_clip_algorithm="norm",
         limit_train_batches=1.0 / skip_rate,
         limit_val_batches=1.0 / skip_rate,
         limit_test_batches=1.0 / skip_rate,
+        callbacks=[checkpoint_callback],
     )
     trainer.fit(model=model, datamodule=dl)
