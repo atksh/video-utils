@@ -8,6 +8,7 @@ from .layer import (
     ImageReduction3D,
     ImageToVideo,
     Layer2D,
+    Sigmoid,
     UpsampleWithRefrence,
     VideoBlock,
     VideoToImage,
@@ -80,6 +81,7 @@ class Decoder(nn.Module):
         self.from_YCbCr420 = YCbCr420ToRGB()
 
         self.avg_pool = Layer2D(nn.AvgPool2d(2, 2))
+        self.sigmoid = Sigmoid()
 
     def avg(self, video):
         hr_l, cbcr = self.to_YCbCr420(video)
@@ -110,9 +112,8 @@ class Decoder(nn.Module):
 
         l = l.view(l.shape[0], self.n_steps, -1, l.shape[2], l.shape[3])
         cbcr = cbcr.view(cbcr.shape[0], self.n_steps, -1, cbcr.shape[2], cbcr.shape[3])
-        with torch.cuda.amp.autocast(enabled=False):
-            l = l.float().sigmoid()
-            cbcr = cbcr.float().sigmoid()
+        l = self.sigmoid(l)
+        cbcr = self.sigmoid(cbcr)
         rgb = self.from_YCbCr420(l, cbcr)
         return rgb
 

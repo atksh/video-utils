@@ -6,17 +6,39 @@ from torch.nn import functional as F
 NEG_INF = -5000.0
 
 
+class Sigmoid(torch.nn.Module):
+    def forward(self, x):
+        x = x.float()
+        with torch.cuda.amp.autocast(enabled=False):
+            return torch.sigmoid(x)
+
+
+class Tanh(torch.nn.Module):
+    def forward(self, x):
+        x = x.float()
+        with torch.cuda.amp.autocast(enabled=False):
+            return torch.tanh(x)
+
+
+class Swish(torch.nn.Module):
+    def forward(self, x):
+        x = x.float()
+        with torch.cuda.amp.autocast(enabled=False):
+            return F.silu(x)
+
+
 class ReversibleSequential(nn.Module):
     def __init__(self, layers, split_dim):
         super().__init__()
         self.split_dim = split_dim
         self.layers = revlib.ReversibleSequential(*layers, split_dim=split_dim)
         self.s = nn.Parameter(torch.zeros(1))
+        self.sigmoid = Sigmoid()
 
     def forward(self, x):
         x = torch.cat([x, x], dim=self.split_dim)
         x1, x2 = self.layers(x).chunk(2, dim=self.split_dim)
-        s = self.s.sigmoid()
+        s = self.sigmoid(s)
         x = s * x1 + (1 - s) * x2
         return s
 
@@ -81,9 +103,9 @@ class SELayer(nn.Module):
         intermed_dim = max(dim // reduction, 2)
         self.fc = nn.Sequential(
             nn.Linear(dim, intermed_dim, bias=False),
-            nn.Mish(),
+            Swish(),
             nn.Linear(intermed_dim, dim, bias=False),
-            nn.Sigmoid(),
+            Sigmoid(),
         )
 
     def forward(self, x):
@@ -99,12 +121,12 @@ class LRASPP(nn.Module):
         self.aspp1 = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, 1, bias=False),
             LayerNorm2D(out_channels),
-            nn.Mish(),
+            Swish(),
         )
         self.aspp2 = nn.Sequential(
             nn.AdaptiveAvgPool2d(1),
             nn.Conv2d(in_channels, out_channels, 1),
-            nn.Sigmoid(),
+            Sigmoid(),
         )
 
     def forward(self, x):
@@ -120,7 +142,7 @@ class FFN(nn.Module):
         self.wo = nn.Conv2d(
             dim * s, dim, kernel_size=1, padding=0, bias=False, groups=heads
         )
-        self.act = nn.Mish()
+        self.act = Swish()
 
     def forward(self, x):
         x1, x2 = self.wi(x).chunk(2, dim=1)
@@ -187,7 +209,7 @@ class MBConv(nn.Module):
         )
         self.se = SELayer(dim * s)
         self.p2 = nn.Conv2d(dim * s, dim, kernel_size=1, bias=False)
-        self.act = nn.Mish()
+        self.act = Swish()
         self.ln1 = LayerNorm2D(dim)
         self.ln2 = LayerNorm2D(dim * s)
 
@@ -232,6 +254,8 @@ class ConvGRU(nn.Module):
         self.conv_z = nn.Conv2d(2 * dim, dim, kernel_size=1)
         self.conv_r = nn.Conv2d(2 * dim, dim, kernel_size=1)
         self.conv_h = nn.Conv2d(2 * dim, dim, kernel_size=1)
+        self.sigmoid = Sigmoid()
+        self.tanh = Tanh()
 
     def forward(self, video):
         # video: (batch_size, seq_len, dim, height, width)
@@ -241,10 +265,10 @@ class ConvGRU(nn.Module):
         for i in range(seq_len):
             x = video[:, i]
             xh = torch.cat([x, h], dim=1)
-            z = torch.sigmoid(self.conv_z(xh))
-            r = torch.sigmoid(self.conv_r(xh))
+            z = self.sigmoid(self.conv_z(xh))
+            r = self.sigmoid(self.conv_r(xh))
             xh = torch.cat([x, r * h], dim=1)
-            h = (1 - z) * h + z * torch.tanh(self.conv_h(xh))
+            h = (1 - z) * h + z * self.tanh(self.conv_h(xh))
             out.append(h)
         out = torch.stack(out, dim=1)
         return out
@@ -430,7 +454,7 @@ class VideoBlock(nn.Module):
                 ]
             )
         self.layers = ReversibleSequential(layers, split_dim=2)
-        self.post_ln = VideoLayerNorm(dim)
+        self.post_ln = SimpleLayer2D(nn.GroupNorm(heads, dim))
 
     def forward(self, x):
         x = self.layers(x)
