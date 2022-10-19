@@ -189,7 +189,7 @@ class ImageBlock(nn.Module):
 
     def forward(self, x):
         x1 = self.fc(x)
-        x2 = self.lrassp(x)
+        x2 = self.lraspp(x)
         i = self.mbconv_i(x2).sigmoid()
         x = x1 * i + x2 * (1 - i)
         x = self.mbconv_p(x)
