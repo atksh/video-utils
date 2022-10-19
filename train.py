@@ -1,4 +1,5 @@
 import sys
+from unittest import skip
 
 import pytorch_lightning as pl
 
@@ -48,5 +49,6 @@ if __name__ == "__main__":
         enable_checkpointing=True,
         gradient_clip_val=1.0,
         gradient_clip_algorithm="norm",
+        limit_train_batches=1 / skip_rate,
     )
     trainer.fit(model=model, datamodule=dl)

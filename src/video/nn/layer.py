@@ -423,9 +423,7 @@ class VideoBlock(nn.Module):
                 ]
             )
         self.layers = ReversibleSequential(layers, split_dim=2)
-        self.post_ln = VideoLayerNorm(dim)
 
     def forward(self, x):
         x = self.layers(x)
-        x = self.post_ln(x)
         return x
