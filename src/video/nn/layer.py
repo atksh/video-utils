@@ -1,10 +1,23 @@
 import revlib
 import torch
 from einops import rearrange
+from functorch.compile import memory_efficient_fusion
 from torch import nn
 from torch.nn import functional as F
 
 NEG_INF = -5000.0
+
+
+class ReversibleSequential(nn.Module):
+    def __init__(self, layers, split_dim):
+        super().__init__()
+        layers = [memory_efficient_fusion(layer) for layer in layers]
+        self.split_dim = split_dim
+        self.layers = revlib.ReversibleSequential(*layers, split_dim=split_dim)
+
+    def forward(self, x):
+        x1, x2 = self.layers(x).chunk(2, dim=self.split_dim)
+        return 0.5 * (x1 + x2)
 
 
 class VideoToImage(nn.Module):
@@ -175,7 +188,7 @@ class ImageReduction(nn.Module):
         self.skip = nn.Conv2d(in_dim, out_dim, kernel_size=1, bias=False)
         self.lraspp = LRASPP(in_dim, out_dim)
         layers = [MBConv(out_dim) for _ in range(n_layers)]
-        self.layers = revlib.ReversibleSequential(*layers, split_dim=1)
+        self.layers = ReversibleSequential(*layers, split_dim=1)
         self.ln = LayerNorm2D(out_dim)
 
     def forward(self, x):
@@ -387,8 +400,7 @@ class VideoBlock(nn.Module):
                     MBConv3D(dim),
                 ]
             )
-
-        self.layers = revlib.ReversibleSequential(*layers, split_dim=2)
+        self.layers = ReversibleSequential(layers, split_dim=2)
         self.post_ln = VideoLayerNorm(dim)
 
     def forward(self, x):
