@@ -22,13 +22,13 @@ class ReversibleSequential(nn.Module):
 class VideoToImage(nn.Module):
     def forward(self, x):
         c, h, w = x.shape[2:]
-        return x.view(-1, c, h, w)
+        return x.reshape(-1, c, h, w)
 
 
 class ImageToVideo(nn.Module):
     def forward(self, x, batch_size: int):
         c, h, w = x.shape[1:]
-        return x.view(batch_size, -1, c, h, w)
+        return x.reshape(batch_size, -1, c, h, w)
 
 
 class Layer2D(nn.Module):
