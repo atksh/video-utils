@@ -1,9 +1,11 @@
+import math
+from turtle import forward
+
 import torch
 from einops import rearrange
 from torch import nn
+from torch.jit import Final
 from torch.nn import functional as F
-
-from .ckpt import ckpt_forward
 
 NEG_INF = -5000.0
 
@@ -318,39 +320,34 @@ def ImageBlock3D(in_dim, out_dim, kernel_size=3):
     return Layer2D(ImageBlock(in_dim, out_dim, kernel_size))
 
 
-class PreNorm3D(nn.Module):
-    def __init__(self, dim, fn):
-        super().__init__()
-        self.norm = VideoLayerNorm(dim)
-        self.fn = fn
-
-    def forward(self, x, *args, **kwargs):
-        return x + self.fn(self.norm(x), *args, **kwargs)
-
-
 class VideoBlock(nn.Module):
     def __init__(self, dim, heads):
         super().__init__()
         self.pre = ImageBlock3D(dim, dim)
         self.post = ImageBlock3D(dim, dim)
-        self.conv_gru = PreNorm3D(dim, ConvGRU(dim))
-        self.channel_attn = PreNorm3D(dim, ChannelVideoAttention(dim, heads))
-        self.full_attn = PreNorm3D(dim, FullVideoAttention(dim, heads))
-        self.ffn = PreNorm3D(dim, FFN3D(dim))
+        self.conv_gru = ConvGRU(dim)
+        self.channel_attn = ChannelVideoAttention(dim, heads)
+        self.full_attn = FullVideoAttention(dim, heads)
+        self.ffn = FFN3D(dim)
+        self.ln1 = VideoLayerNorm(dim)
+        self.ln2 = VideoLayerNorm(dim)
+        self.ln3 = VideoLayerNorm(dim)
+        self.ln4 = VideoLayerNorm(dim)
 
     def last_only_forward(self, f, x):
-        q = x[:, [-1]]
-        x = torch.cat([x[:, :-1], f(q)], dim=1)
+        q = f(x[:, [-1]])
+        x = torch.cat([x[:, :-1], q], dim=1)
         return x
 
-    @ckpt_forward
     def forward(self, x):
         # x: (batch_size, len, dim, height, width)
         x = self.pre(x)
-        x = self.conv_gru(x)
-        x = self.channel_attn(x, x, x)
-        full_attn = lambda q: self.full_attn(q, x, x)
-        x = self.last_only_forward(full_attn, x)
-        x = self.ffn(x)
+        x = x + self.conv_gru(self.ln1(x))
+        _x = self.ln2(x)
+        x = x + self.channel_attn(_x, _x, _x)
+        _x = self.ln3(x)
+        full_attn = lambda q: self.full_attn(q, _x, _x)
+        x = self.last_only_forward(full_attn, _x)
+        x = x + self.ffn(self.ln4(x))
         x = self.post(x)
         return x
