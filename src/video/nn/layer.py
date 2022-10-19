@@ -179,18 +179,23 @@ class MBConv(nn.Module):
 
 
 class ImageReduction(nn.Module):
-    def __init__(self, in_dim, out_dim):
+    def __init__(self, in_dim, out_dim, n_layers):
         super().__init__()
         self.skip = nn.Conv2d(in_dim, out_dim, kernel_size=1, bias=False)
         self.gate = nn.Conv2d(in_dim, out_dim, kernel_size=3, padding=1)
         self.conv = MBConv(in_dim, s=1)
         self.lraspp = LRASPP(in_dim, out_dim)
+        layers = [MBConv(out_dim, s=1) for _ in range(n_layers)]
+        self.layers = revlib.ReversibleSequential(*layers)
 
     def forward(self, x):
         z = self.skip(x)
         i = self.gate(x).sigmoid()
         x = self.lraspp(self.conv(x))
-        return x * i + z * (1 - i)
+        x1, x2 = self.layers(x)
+        x = 0.5 * (x1 + x2)
+        x = x * i + z * (1 - i)
+        return x
 
 
 # 3D layers
@@ -345,8 +350,8 @@ def MBConv3D(dim, s=4):
     return Layer2D(MBConv(dim, s))
 
 
-def ImageReduction3D(in_dim, out_dim):
-    return Layer2D(ImageReduction(in_dim, out_dim))
+def ImageReduction3D(in_dim, out_dim, n_layers):
+    return Layer2D(ImageReduction(in_dim, out_dim, n_layers))
 
 
 class VideoBlock(nn.Module):
