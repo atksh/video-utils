@@ -3,7 +3,7 @@ skip_rate = 4
 max_len = 32
 
 num_workers = 16
-total_batch_size = 32
+total_batch_size = 8
 train_batch_size = 8
 predict_batch_size = 4
 fps = 30

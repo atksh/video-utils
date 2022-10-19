@@ -9,7 +9,7 @@ NEG_INF = -5000.0
 class ReversibleSequential(nn.Module):
     def __init__(self, layers, split_dim):
         super().__init__()
-        layers = [torch.jit.script(layer) for layer in layers]
+        # layers = [torch.jit.script(layer) for layer in layers]
         self.split_dim = split_dim
         self.layers = revlib.ReversibleSequential(*layers, split_dim=split_dim)
 
@@ -21,13 +21,13 @@ class ReversibleSequential(nn.Module):
 
 class VideoToImage(nn.Module):
     def forward(self, x):
-        c, h, w = x.shape[2:]
+        _, _, c, h, w = x.shape
         return x.reshape(-1, c, h, w)
 
 
 class ImageToVideo(nn.Module):
     def forward(self, x, batch_size: int):
-        c, h, w = x.shape[1:]
+        _, c, h, w = x.shape
         return x.reshape(batch_size, -1, c, h, w)
 
 
@@ -250,14 +250,14 @@ class TimeConv(nn.Module):
         self.conv = nn.Conv1d(dim, dim, 2, bias=False, padding=0)
 
     def forward(self, video):
-        b, l, c, h, w = video.shape
+        b, t, c, h, w = video.shape
         # b t c h w -> (b h w) c t"
-        video = video.permute(0, 3, 4, 1, 2).reshape(-1, c, l)
+        video = video.permute(0, -1, -2, 1, 2).reshape(-1, c, t)
         video = F.pad(video, (1, 0))
         video = self.conv(video)
         # (b h w) c t -> b t c h w, h=h, w=w, b=b
-        video = video.reshape(b, h, w, c, l)
-        video = video.permute(0, 4, 3, 1, 2)
+        video = video.reshape(b, h, w, c, t)
+        video = video.permute(0, -1, -2, 1, 2)
         return video
 
 
@@ -280,17 +280,20 @@ class ChannelVideoAttention(nn.Module):
         q = self.Q(q.mean(dim=[-1, -2]))  # (batch_size, len_s, dim)
         k = self.K(k.mean(dim=[-1, -2]))  # (batch_size, len_t, dim)
         # b m c h w -> b (h w) m c
-        v = v.permute(0, 3, 4, 1, 2).reshape(bsz, height * width, len_t, -1)
+        v = v.permute(0, -1, -2, 1, 2)
+        v = v.reshape(bsz, height * width, len_t, -1)
         v = self.V(v)
 
         q = q.reshape(bsz, len_s, self.heads, -1).permute(0, 2, 1, 3)
         k = k.reshape(bsz, len_t, self.heads, -1).permute(0, 2, 3, 1)
         v = v.reshape(bsz, height * width, len_t, self.heads, -1)
-        v = v.permute(0, 1, 3, 2, 4)
+        v = v.permute(0, 1, 3, 2, 4)  # (bsz, pixel, heads, len_t, dim // heads)
 
         q = q * self.scale
         attn = torch.matmul(q, k).softmax(dim=-1)
+        assert attn.shape == (bsz, self.heads, len_s, len_t)
         out = torch.matmul(attn.unsqueeze(1), v)
+        assert out.shape == (bsz, 1, self.heads, len_s, v.shape[-1])
         # b (height width) h n d -> b n (h d) height width
         out = out.permute(0, 3, 2, 4, 1).reshape(bsz, len_s, -1, height, width)
         return out
@@ -313,25 +316,27 @@ class FullVideoAttention(nn.Module):
         len_t = k.shape[1]
         height, width = q.shape[-2:]
         # b m c h w -> b (h w) m c
-        q = q.permute(0, 3, 4, 1, 2).reshape(bsz, height * width, len_s, -1)
-        k = k.permute(0, 3, 4, 1, 2).reshape(bsz, height * width, len_t, -1)
-        v = v.permute(0, 3, 4, 1, 2).reshape(bsz, height * width, len_t, -1)
+        q = q.permute(0, -1, -2, 1, 2).reshape(bsz, height * width, len_s, -1)
+        k = k.permute(0, -1, -2, 1, 2).reshape(bsz, height * width, len_t, -1)
+        v = v.permute(0, -1, -2, 1, 2).reshape(bsz, height * width, len_t, -1)
         q = self.Q(q)
         k = self.K(k)
         v = self.V(v)
 
         q = q.reshape(bsz, height * width, len_s, self.heads, -1)
-        q = q.permute(0, 3, 1, 2, 4)
+        q = q.permute(0, 1, 3, 2, 4)
         k = k.reshape(bsz, height * width, len_t, self.heads, -1)
-        k = k.permute(0, 3, 1, 4, 2)
+        k = k.permute(0, 1, 3, 4, 2)
         v = v.reshape(bsz, height * width, len_t, self.heads, -1)
-        v = v.permute(0, 3, 1, 2, 4)
+        v = v.permute(0, 1, 3, 2, 4)
 
         q = q * self.scale
         attn = torch.matmul(q, k).softmax(dim=-1)
+        assert attn.shape == (bsz, height * width, self.heads, len_s, len_t)
         out = torch.matmul(attn, v)
+        assert out.shape == (bsz, height * width, self.heads, len_s, v.shape[-1])
         # b (height width) h n d -> b n (h d) height width
-        out = out.permute(0, 2, 3, 4, 1).reshape(bsz, len_s, -1, height, width)
+        out = out.permute(0, 3, 2, 4, 1).reshape(bsz, len_s, -1, height, width)
         return out
 
 
