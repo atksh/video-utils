@@ -1,4 +1,5 @@
 import math
+from turtle import forward
 
 import torch
 from einops import rearrange
@@ -161,7 +162,7 @@ class MBConv(nn.Module):
         padding = (kernel_size - 1) // 2
         self.p1 = nn.Conv2d(dim, dim * s, kernel_size=1, bias=False)
         self.d1 = nn.Conv2d(
-            dim * s, dim * s, kernel_size=kernel_size, padding=padding, groups=dim * 4
+            dim * s, dim * s, kernel_size=kernel_size, padding=padding, groups=dim * s
         )
         self.se = SELayer(dim * s)
         self.p2 = nn.Conv2d(dim * s, dim, kernel_size=1, bias=False)
@@ -179,19 +180,32 @@ class MBConv(nn.Module):
         return x
 
 
+class ImageReduction(nn.Module):
+    def __init__(self, in_dim, out_dim):
+        super().__init__()
+        self.skip = nn.Conv2d(in_dim, out_dim, kernel_size=1, bias=False)
+        self.gate = nn.Conv2d(in_dim, out_dim, kernel_size=3, padding=1)
+        self.conv = MBConv(in_dim)
+        self.lraspp = LRASPP(in_dim, out_dim)
+
+    def forward(self, x):
+        z = self.skip(x)
+        i = self.gate(x).sigmoid()
+        x = self.lraspp(self.conv(x))
+        return x * i + z * (1 - i)
+
+
 class ImageBlock(nn.Module):
     def __init__(self, in_dim, out_dim, kernel_size=3):
         super().__init__()
-        self.fc = nn.Conv2d(in_dim, out_dim, kernel_size=1, bias=False)
-        self.lraspp = LRASPP(in_dim, out_dim)
-        self.conv_i = nn.Conv2d(out_dim, out_dim, kernel_size=3, padding=1)
+        if in_dim != out_dim:
+            self.reduction = ImageReduction(in_dim, out_dim)
+        else:
+            self.reduction = nn.Identity()
         self.mbconv = MBConv(out_dim, kernel_size=kernel_size)
 
     def forward(self, x):
-        x1 = self.fc(x)
-        x2 = self.lraspp(x)
-        i = self.conv_i(x2).sigmoid()
-        x = x1 * i + x2 * (1 - i)
+        x = self.reduction(x)
         x = self.mbconv(x)
         return x
 
