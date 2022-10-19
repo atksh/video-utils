@@ -97,9 +97,7 @@ class FFN(nn.Module):
 
 
 class UpsampleWithRefrence(nn.Module):
-    def __init__(
-        self, low_dim, high_dim, scale=2, mode="bilinear", align_corners=False
-    ):
+    def __init__(self, low_dim, high_dim, scale=2, mode="nearest", align_corners=False):
         super().__init__()
         self.mode = mode
         self.align_corners = align_corners
