@@ -182,15 +182,17 @@ class MBConv(nn.Module):
 class ImageBlock(nn.Module):
     def __init__(self, in_dim, out_dim, kernel_size=3):
         super().__init__()
+        self.fc = nn.Conv2d(in_dim, out_dim, kernel_size=1, bias=False)
         self.lraspp = LRASPP(in_dim, out_dim)
-        self.mbconv = MBConv(out_dim, kernel_size=kernel_size)
-        self.ln = LayerNorm2D(out_dim)
-        self.skip = nn.Conv2d(in_dim, out_dim, kernel_size=1, bias=False)
+        self.mbconv_i = MBConv(out_dim, kernel_size=kernel_size)
+        self.mbconv_p = MBConv(out_dim, kernel_size=kernel_size)
 
     def forward(self, x):
-        x = self.lraspp(x) + self.skip(x)
-        x = self.ln(x)
-        x = self.mbconv(x)
+        x1 = self.fc(x)
+        x2 = self.lrassp(x)
+        i = self.mbconv_i(x2).sigmoid()
+        x = x1 * i + x2 * (1 - i)
+        x = self.mbconv_p(x)
         return x
 
 
