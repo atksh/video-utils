@@ -9,7 +9,6 @@ NEG_INF = -5000.0
 class ReversibleSequential(nn.Module):
     def __init__(self, layers, split_dim):
         super().__init__()
-        layers = [torch.jit.script(layer) for layer in layers]
         self.split_dim = split_dim
         self.layers = revlib.ReversibleSequential(*layers, split_dim=split_dim)
 
