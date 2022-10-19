@@ -166,4 +166,5 @@ class Model(pl.LightningModule):
             weight_decay=1e-4,
             eps=1e-12,
             print_change_log=False,
+            betas=(0.9, 0.98),
         )
