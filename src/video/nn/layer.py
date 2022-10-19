@@ -157,20 +157,24 @@ class MBConv(nn.Module):
     def __init__(self, dim, s=4, kernel_size=3):
         super().__init__()
         padding = (kernel_size - 1) // 2
-        self.conv = nn.Conv2d(dim, dim * s, kernel_size=kernel_size, padding=padding)
+        self.p1 = nn.Conv2d(dim, dim * s, kernel_size=1, bias=False)
+        self.d1 = nn.Conv2d(
+            dim * s, dim * s, kernel_size=kernel_size, padding=padding, groups=dim * s
+        )
         self.se = SELayer(dim * s)
-        self.proj = nn.Conv2d(dim * s, dim, kernel_size=1, bias=False)
+        self.p2 = nn.Conv2d(dim * s, dim, kernel_size=1, bias=False)
         self.act = nn.Mish()
         self.ln1 = LayerNorm2D(dim)
         self.ln2 = LayerNorm2D(dim * s)
 
     def forward(self, x):
         x = self.ln1(x)
-        x = self.conv(x)
+        x = self.p1(x)
+        x = self.d1(x)
         x = self.act(x)
         x = self.ln2(x)
         x = self.se(x)
-        x = self.proj(x)
+        x = self.p2(x)
         return x
 
 
@@ -361,8 +365,11 @@ class VideoBlock(nn.Module):
                 [
                     MBConv3D(dim),
                     PreNormConvGRU(dim),
+                    MBConv3D(dim),
                     PreNormChannelVideoAttention(dim, heads),
+                    MBConv3D(dim),
                     PreNormLastQueryFullVideoAttention(dim, heads),
+                    MBConv3D(dim),
                     PreNormFFN3D(dim),
                     MBConv3D(dim),
                 ]
