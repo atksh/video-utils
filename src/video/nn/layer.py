@@ -291,9 +291,7 @@ class ChannelVideoAttention(nn.Module):
 
         q = q * self.scale
         attn = torch.matmul(q, k).softmax(dim=-1)
-        assert attn.shape == (bsz, self.heads, len_s, len_t)
         out = torch.matmul(attn.unsqueeze(1), v)
-        assert out.shape == (bsz, 1, self.heads, len_s, v.shape[-1])
         # b (height width) h n d -> b n (h d) height width
         out = out.permute(0, 3, 2, 4, 1).reshape(bsz, len_s, -1, height, width)
         return out
@@ -332,9 +330,7 @@ class FullVideoAttention(nn.Module):
 
         q = q * self.scale
         attn = torch.matmul(q, k).softmax(dim=-1)
-        assert attn.shape == (bsz, height * width, self.heads, len_s, len_t)
         out = torch.matmul(attn, v)
-        assert out.shape == (bsz, height * width, self.heads, len_s, v.shape[-1])
         # b (height width) h n d -> b n (h d) height width
         out = out.permute(0, 3, 2, 4, 1).reshape(bsz, len_s, -1, height, width)
         return out
