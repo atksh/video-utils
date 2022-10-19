@@ -7,8 +7,8 @@ from torch.nn import functional as F
 
 from .ckpt import ckpt_forward
 from .layer import (
-    ImageBlock,
-    ImageBlock3D,
+    ImageReduction,
+    ImageReduction3D,
     ImageToVideo,
     Layer2D,
     UpsampleWithRefrence,
@@ -31,12 +31,8 @@ class Encoder(nn.Module):
             in_dim = backbone_feat_dims[i]
             inner_dim = front_feat_dims[i]
             heads = num_heads[i]
-            feat_blocks.append(ImageBlock(in_dim, inner_dim))
-            feat_time_blocks.append(
-                nn.Sequential(
-                    *[VideoBlock(inner_dim, heads) for _ in range(num_layers[i])]
-                )
-            )
+            feat_blocks.append(ImageReduction(in_dim, inner_dim))
+            feat_time_blocks.append(VideoBlock(inner_dim, heads, num_layers[i]))
         self.feat_blocks = nn.ModuleList(feat_blocks)
         self.feat_time_blocks = nn.ModuleList(feat_time_blocks)
 
@@ -65,10 +61,8 @@ class Decoder(nn.Module):
             cat_dim = in_dim + 2 * additional_dim
             post_blocks.append(
                 nn.Sequential(
-                    ImageBlock3D(cat_dim, out_dim),
-                    nn.Sequential(
-                        *[VideoBlock(out_dim, heads) for _ in range(num_layers[i])]
-                    ),
+                    ImageReduction3D(cat_dim, out_dim),
+                    VideoBlock(out_dim, heads, num_layers[i]),
                 )
             )
 
@@ -76,11 +70,11 @@ class Decoder(nn.Module):
         self.post_blocks = nn.ModuleList(post_blocks)
 
         self.last_up1 = UpsampleWithRefrence(last_dim, 3)
-        self.refine1 = ImageBlock(last_dim + 6, last_dim)
+        self.refine1 = ImageReduction(last_dim + 6, last_dim)
         self.fc_cbcr = nn.Conv2d(last_dim, 2 * self.n_steps, 1)
 
         self.last_up2 = UpsampleWithRefrence(last_dim, 1)
-        self.refine2 = ImageBlock(last_dim + 2, last_dim)
+        self.refine2 = ImageReduction(last_dim + 2, last_dim)
         self.fc_l = nn.Conv2d(last_dim, 1 * self.n_steps, 1)
 
         self.to_image = VideoToImage()

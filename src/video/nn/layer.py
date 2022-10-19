@@ -1,9 +1,8 @@
+import revlib
 import torch
 from einops import rearrange
 from torch import nn
 from torch.nn import functional as F
-
-from video.nn.ckpt import ckpt_forward
 
 NEG_INF = -5000.0
 
@@ -169,7 +168,6 @@ class MBConv(nn.Module):
         self.ln2 = LayerNorm2D(dim * s)
 
     def forward(self, x):
-        resid = x
         x = self.ln1(x)
         x = self.p1(x)
         x = self.d1(x)
@@ -177,7 +175,6 @@ class MBConv(nn.Module):
         x = self.ln2(x)
         x = self.se(x)
         x = self.p2(x)
-        x = x + resid
         return x
 
 
@@ -194,21 +191,6 @@ class ImageReduction(nn.Module):
         i = self.gate(x).sigmoid()
         x = self.lraspp(self.conv(x))
         return x * i + z * (1 - i)
-
-
-class ImageBlock(nn.Module):
-    def __init__(self, in_dim, out_dim, kernel_size=3):
-        super().__init__()
-        if in_dim != out_dim:
-            self.reduction = ImageReduction(in_dim, out_dim)
-        else:
-            self.reduction = nn.Identity()
-        self.mbconv = MBConv(out_dim, kernel_size=kernel_size)
-
-    def forward(self, x):
-        x = self.reduction(x)
-        x = self.mbconv(x)
-        return x
 
 
 # 3D layers
@@ -310,44 +292,81 @@ class FullVideoAttention(nn.Module):
         return out
 
 
+class PreNormConvGRU(nn.Module):
+    def __init__(self, dim):
+        super().__init__()
+        self.ln = VideoLayerNorm(dim)
+        self.f = ConvGRU(dim)
+
+    def forward(self, x):
+        x = self.ln(x)
+        return self.f(x)
+
+
+class PreNormChannelVideoAttention(nn.Module):
+    def __init__(self, dim, heads, eps=1e-6):
+        super().__init__()
+        self.ln = VideoLayerNorm(dim, eps)
+        self.f = ChannelVideoAttention(dim, heads)
+
+    def forward(self, x):
+        x = self.ln(x)
+        return self.f(x, x, x)
+
+
+class PreNormLastQueryFullVideoAttention(nn.Module):
+    def __init__(self, dim, heads):
+        super().__init__()
+        self.ln = VideoLayerNorm(dim)
+        self.f = FullVideoAttention(dim, heads)
+
+    def forward(self, x):
+        q = x[:, [-1]]
+        q = self.ln(q)
+        return self.f(q, x, x)
+
+
 def FFN3D(dim, s=2):
     return Layer2D(FFN(dim, s))
 
 
-def ImageBlock3D(in_dim, out_dim, kernel_size=3):
-    return Layer2D(ImageBlock(in_dim, out_dim, kernel_size))
+class PreNormFFN3D(nn.Module):
+    def __init__(self, dim, s=2):
+        super().__init__()
+        self.ln = VideoLayerNorm(dim)
+        self.f = FFN3D(dim, s)
+
+    def forward(self, x):
+        x = self.ln(x)
+        return self.f(x)
+
+
+def MBConv3D(dim, s=4):
+    return Layer2D(MBConv(dim, s))
+
+
+def ImageReduction3D(in_dim, out_dim):
+    return Layer2D(ImageReduction(in_dim, out_dim))
 
 
 class VideoBlock(nn.Module):
-    def __init__(self, dim, heads):
+    def __init__(self, dim, heads, n_layers):
         super().__init__()
-        self.pre = ImageBlock3D(dim, dim)
-        self.post = ImageBlock3D(dim, dim)
-        self.conv_gru = ConvGRU(dim)
-        self.channel_attn = ChannelVideoAttention(dim, heads)
-        self.full_attn = FullVideoAttention(dim, heads)
-        self.ffn = FFN3D(dim)
-        self.ln1 = VideoLayerNorm(dim)
-        self.ln2 = VideoLayerNorm(dim)
-        self.ln3 = VideoLayerNorm(dim)
-        self.ln4 = VideoLayerNorm(dim)
+        layers = []
+        for _ in range(n_layers):
+            layers.extend(
+                [
+                    MBConv3D(dim),
+                    PreNormConvGRU(dim),
+                    PreNormChannelVideoAttention(dim, heads),
+                    PreNormLastQueryFullVideoAttention(dim, heads),
+                    PreNormFFN3D(dim),
+                    MBConv3D(dim),
+                ]
+            )
 
-    def last_only_forward(self, f, x):
-        q = x[:, [-1]]
-        q = q + f(q)
-        x = torch.cat([x[:, :-1], q], dim=1)
-        return x
+        self.layers = revlib.ReversibleSequential(*layers, split_dim=2)
 
-    @ckpt_forward
     def forward(self, x):
-        # x: (batch_size, len, dim, height, width)
-        x = self.pre(x)
-        x = x + self.conv_gru(self.ln1(x))
-        _x = self.ln2(x)
-        x = x + self.channel_attn(_x, _x, _x)
-        _x = self.ln3(x)
-        full_attn = lambda q: self.full_attn(q, _x, _x)
-        x = self.last_only_forward(full_attn, _x)
-        x = x + self.ffn(self.ln4(x))
-        x = self.post(x)
-        return x
+        x1, x2 = self.layer(x, x).chunk(2, dim=2)
+        return x1 + x2
