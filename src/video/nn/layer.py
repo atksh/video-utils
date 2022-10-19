@@ -181,22 +181,16 @@ class MBConv(nn.Module):
 class ImageReduction(nn.Module):
     def __init__(self, in_dim, out_dim, n_layers):
         super().__init__()
-        self.skip = nn.Conv2d(in_dim, out_dim, kernel_size=1, bias=False)
-        self.gate = nn.Conv2d(in_dim, out_dim, kernel_size=1)
-        self.conv = MBConv(in_dim, s=1)
         self.lraspp = LRASPP(in_dim, out_dim)
-        layers = [MBConv(out_dim, s=1) for _ in range(n_layers)]
+        layers = [MBConv(out_dim) for _ in range(n_layers)]
         self.layers = revlib.ReversibleSequential(*layers, split_dim=1)
         self.ln = LayerNorm2D(out_dim)
 
     def forward(self, x):
-        z = self.skip(x)
-        i = self.gate(x).sigmoid()
-        x = self.lraspp(self.conv(x))
+        x = self.lraspp(x)
         x1, x2 = self.layers(torch.cat([x, x], dim=1)).chunk(2, dim=1)
         x = 0.5 * (x1 + x2)
         x = self.ln(x)
-        x = x * i + z * (1 - i)
         return x
 
 
@@ -229,6 +223,22 @@ class ConvGRU(nn.Module):
             out.append(h)
         out = torch.stack(out, dim=1)
         return out
+
+
+class TimeConv(nn.Module):
+    def __init__(self, dim, kernel_size=3):
+        super().__init__()
+        padding = (kernel_size - 1) // 2
+        self.conv = nn.Conv1d(
+            dim, dim, kernel_size=kernel_size, padding=padding, bias=False
+        )
+
+    def forward(self, video):
+        b, _, _, h, w = video.shape
+        video = rearrange(video, "b t c h w -> (b h w) c t")
+        video = self.conv(video)
+        video = rearrange(video, "(b h w) c t -> b t c h w", h=h, w=w, b=b)
+        return video
 
 
 class ChannelVideoAttention(nn.Module):
@@ -348,6 +358,17 @@ class PreNormFFN3D(nn.Module):
         return self.f(x)
 
 
+class PreNormTimeConv(nn.Module):
+    def __init__(self, dim, kernel_size=3):
+        super().__init__()
+        self.ln = VideoLayerNorm(dim)
+        self.f = TimeConv(dim, kernel_size)
+
+    def forward(self, x):
+        x = self.ln(x)
+        return self.f(x)
+
+
 def MBConv3D(dim, s=4):
     return Layer2D(MBConv(dim, s))
 
@@ -364,14 +385,16 @@ class VideoBlock(nn.Module):
             layers.extend(
                 [
                     MBConv3D(dim),
-                    PreNormConvGRU(dim),
-                    MBConv3D(dim),
-                    PreNormChannelVideoAttention(dim, heads),
-                    MBConv3D(dim),
-                    PreNormLastQueryFullVideoAttention(dim, heads),
-                    MBConv3D(dim),
-                    PreNormFFN3D(dim),
-                    MBConv3D(dim),
+                    PreNormTimeConv(dim),
+                    # MBConv3D(dim),
+                    # PreNormConvGRU(dim),
+                    # MBConv3D(dim),
+                    # PreNormChannelVideoAttention(dim, heads),
+                    # MBConv3D(dim),
+                    # PreNormLastQueryFullVideoAttention(dim, heads),
+                    # MBConv3D(dim),
+                    # PreNormFFN3D(dim),
+                    # MBConv3D(dim),
                 ]
             )
 

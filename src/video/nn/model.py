@@ -87,7 +87,12 @@ class Decoder(nn.Module):
         lr = self.avg_pool(hr)
         return hr_l, hr, lr
 
+    def duplicate_last(self, x):
+        return torch.cat([x, x[:, [-1]]], dim=1)
+
     def forward(self, video, feats):
+        video = self.duplicate_last(video)
+        feats = [self.duplicate_last(feat) for feat in feats]
         l, hr, lr = self.avg(video)
         feats = [lr] + feats
         x = feats[-1]
