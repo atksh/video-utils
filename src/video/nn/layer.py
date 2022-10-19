@@ -167,16 +167,19 @@ class MBConv(nn.Module):
         self.se = SELayer(dim * s)
         self.p2 = nn.Conv2d(dim * s, dim, kernel_size=1, bias=False)
         self.act = nn.Mish()
-        self.ln = LayerNorm2D(dim)
+        self.ln1 = LayerNorm2D(dim)
+        self.ln2 = LayerNorm2D(dim * 4)
 
     def forward(self, x):
         resid = x
+        x = self.ln1(x)
         x = self.p1(x)
         x = self.d1(x)
         x = self.act(x)
+        x = self.ln2(x)
         x = self.se(x)
         x = self.p2(x)
-        x = self.ln(x + resid)
+        x = x + resid
         return x
 
 
