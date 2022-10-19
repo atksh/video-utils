@@ -368,5 +368,5 @@ class VideoBlock(nn.Module):
         self.layers = revlib.ReversibleSequential(*layers, split_dim=2)
 
     def forward(self, x):
-        x1, x2 = self.layer(x, x).chunk(2, dim=2)
-        return x1 + x2
+        x1, x2 = self.layers(x).chunk(2, dim=2)
+        return 0.5 * (x1 + x2)
