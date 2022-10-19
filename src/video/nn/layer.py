@@ -11,11 +11,14 @@ class ReversibleSequential(nn.Module):
         super().__init__()
         self.split_dim = split_dim
         self.layers = revlib.ReversibleSequential(*layers, split_dim=split_dim)
+        self.s = nn.Parameter(torch.zeros(1))
 
     def forward(self, x):
         x = torch.cat([x, x], dim=self.split_dim)
         x1, x2 = self.layers(x).chunk(2, dim=self.split_dim)
-        return 0.5 * (x1 + x2)
+        s = self.s.sigmoid()
+        x = s * x1 + (1 - s) * x2
+        return s
 
 
 class VideoToImage(nn.Module):
@@ -109,10 +112,14 @@ class LRASPP(nn.Module):
 
 
 class FFN(nn.Module):
-    def __init__(self, dim, s=2):
+    def __init__(self, dim, heads, s=2):
         super().__init__()
-        self.wi = nn.Conv2d(dim, dim * s * 2, kernel_size=1, padding=0, bias=False)
-        self.wo = nn.Conv2d(dim * s, dim, kernel_size=1, padding=0, bias=False)
+        self.wi = nn.Conv2d(
+            dim, dim * s * 2, kernel_size=1, padding=0, bias=False, groups=heads
+        )
+        self.wo = nn.Conv2d(
+            dim * s, dim, kernel_size=1, padding=0, bias=False, groups=heads
+        )
         self.act = nn.Mish()
 
     def forward(self, x):
@@ -371,15 +378,15 @@ class PreNormLastQueryFullVideoAttention(nn.Module):
         return torch.cat([z, q], dim=1)
 
 
-def FFN3D(dim, s=2):
-    return SimpleLayer2D(FFN(dim, s))
+def FFN3D(dim, heads, s=2):
+    return SimpleLayer2D(FFN(dim, heads, s))
 
 
 class PreNormFFN3D(nn.Module):
-    def __init__(self, dim, s=2):
+    def __init__(self, dim, heads, s=2):
         super().__init__()
         self.ln = VideoLayerNorm(dim)
-        self.f = FFN3D(dim, s)
+        self.f = FFN3D(dim, heads, s)
 
     def forward(self, x):
         x = self.ln(x)
@@ -418,12 +425,14 @@ class VideoBlock(nn.Module):
                     PreNormChannelVideoAttention(dim, heads),
                     MBConv3D(dim),
                     PreNormLastQueryFullVideoAttention(dim, heads),
-                    PreNormFFN3D(dim),
+                    PreNormFFN3D(dim, heads),
                     MBConv3D(dim),
                 ]
             )
         self.layers = ReversibleSequential(layers, split_dim=2)
+        self.post_ln = VideoLayerNorm(dim)
 
     def forward(self, x):
         x = self.layers(x)
+        x = self.post_ln(x)
         return x

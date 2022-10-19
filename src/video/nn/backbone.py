@@ -7,7 +7,7 @@ class Backbone(nn.Module):
     def __init__(self):
         super().__init__()
         m = timm.create_model(
-            "convnext_nano", pretrained=True, num_classes=0, global_pool=""
+            "convnext_nano", pretrained=False, num_classes=0, global_pool=""
         )
 
         blocks = nn.ModuleList([m.stages[i] for i in range(4)])
