@@ -49,7 +49,7 @@ class SELayer(nn.Module):
     def __init__(self, dim, reduction=8):
         super().__init__()
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
-        intermed_dim = max(dim // reduction, 4)
+        intermed_dim = max(dim // reduction, 2)
         self.fc = nn.Sequential(
             nn.Linear(dim, intermed_dim, bias=False),
             nn.Mish(),
@@ -74,7 +74,7 @@ class LRASPP(nn.Module):
         )
         self.aspp2 = nn.Sequential(
             nn.AdaptiveAvgPool2d(1),
-            nn.Conv2d(in_channels, out_channels, 1, bias=False),
+            nn.Conv2d(in_channels, out_channels, 1),
             nn.Sigmoid(),
         )
 
@@ -96,20 +96,28 @@ class FFN(nn.Module):
         return x
 
 
-class Upsample(nn.Module):
-    def __init__(self, scale=2, mode="bilinear", align_corners=False):
+class UpsampleWithRefrence(nn.Module):
+    def __init__(
+        self, low_dim, high_dim, scale=2, mode="bilinear", align_corners=False
+    ):
         super().__init__()
-        self.scale = scale
         self.mode = mode
         self.align_corners = align_corners
+        self.high_dim = high_dim
+        self.to_ref = nn.Conv2d(
+            low_dim, 2 * high_dim, kernel_size=3, padding=1, bias=False
+        )
+        self.up = nn.Upsample(
+            scale_factor=scale, mode=mode, align_corners=align_corners
+        )
 
     def interpolate(self, x, **kwargs):
         return F.interpolate(
             x, mode=self.mode, align_corners=self.align_corners, **kwargs
         )
 
-    def forward(self, lowres, highres):
-        upsampled = self.interpolate(lowres, scale_factor=self.scale)
+    def merge(self, lowres, highres):
+        upsampled = self.up(lowres)
         h1, w1 = highres.shape[-2:]
         h2, w2 = upsampled.shape[-2:]
         if h1 != h2 or w1 != w2:
@@ -117,18 +125,6 @@ class Upsample(nn.Module):
             upsampled = self.interpolate(upsampled, size=size)
         out = torch.cat([upsampled, highres], dim=1)
         return out
-
-
-class UpsampleWithRefrence(Upsample):
-    def __init__(
-        self, low_dim, high_dim, scale=2, mode="bilinear", align_corners=False
-    ):
-        super().__init__(scale, mode, align_corners)
-        self.high_dim = high_dim
-        self.to_ref = nn.Conv2d(
-            low_dim, 2 * high_dim, kernel_size=3, padding=1, bias=False
-        )
-        self.up = Upsample(scale, mode, align_corners)
 
     def forward(self, lowres, highres):
         size = highres.shape[-2:]
@@ -143,7 +139,7 @@ class UpsampleWithRefrence(Upsample):
         out = self.transform(ref, highres)
         out = out.reshape(b, high_dim, *size)
         highres = highres.reshape(b, high_dim, *size)
-        return self.up(lowres, torch.cat([out, highres], dim=1))
+        return self.merge(lowres, torch.cat([out, highres], dim=1))
 
     def transform(self, ref_xy, source):
         # ref_xy: (batch_size, 2, height, width)
@@ -151,7 +147,9 @@ class UpsampleWithRefrence(Upsample):
         ref_x = ref_xy[:, 0].softmax(dim=-1).cumsum(dim=-1)
         ref_y = ref_xy[:, 1].softmax(dim=-2).cumsum(dim=-2)
         ref_xy = torch.stack([ref_y, ref_x], dim=-1) * 2 - 1
-        out = F.grid_sample(source, ref_xy, align_corners=False)
+        out = F.grid_sample(
+            source, ref_xy, align_corners=self.align_corners, mode=self.mode
+        )
         return out
 
 
