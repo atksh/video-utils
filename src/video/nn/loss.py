@@ -94,3 +94,12 @@ class MSSSIML1Loss(nn.Module):
             )
 
             return loss_mix.mean()
+
+
+class BCELoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.bce = nn.BCELoss()
+
+    def forward(self, x, y):
+        return self.bce(x, y)

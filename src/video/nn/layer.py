@@ -80,7 +80,7 @@ class SimpleLayer2D(nn.Module):
 
 
 class LayerNorm2D(nn.LayerNorm):
-    def __init__(self, num_channels, eps=1e-6, affine=True):
+    def __init__(self, num_channels, eps=1e-5, affine=True):
         super().__init__(num_channels, eps=eps, elementwise_affine=affine)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -128,13 +128,21 @@ class LRASPP(nn.Module):
 
 
 class FFN(nn.Module):
-    def __init__(self, dim, heads, s=2):
+    def __init__(self, dim, s=2):
         super().__init__()
         self.wi = nn.Conv2d(
-            dim, dim * s * 2, kernel_size=1, padding=0, bias=False, groups=heads
+            dim,
+            dim * s * 2,
+            kernel_size=1,
+            padding=0,
+            bias=False,
         )
         self.wo = nn.Conv2d(
-            dim * s, dim, kernel_size=1, padding=0, bias=False, groups=heads
+            dim * s,
+            dim,
+            kernel_size=1,
+            padding=0,
+            bias=False,
         )
         self.act = Swish()
 
@@ -238,7 +246,7 @@ class ImageReduction(nn.Module):
 # 3D layers
 
 
-def VideoLayerNorm(dim, eps=1e-6):
+def VideoLayerNorm(dim, eps=1e-5):
     return SimpleLayer2D(LayerNorm2D(dim, eps))
 
 
@@ -372,7 +380,7 @@ class PreNormConvGRU(nn.Module):
 
 
 class PreNormChannelVideoAttention(nn.Module):
-    def __init__(self, dim, heads, eps=1e-6):
+    def __init__(self, dim, heads, eps=1e-5):
         super().__init__()
         self.ln = VideoLayerNorm(dim, eps)
         self.f = ChannelVideoAttention(dim, heads)
@@ -396,15 +404,15 @@ class PreNormLastQueryFullVideoAttention(nn.Module):
         return torch.cat([z, q], dim=1)
 
 
-def FFN3D(dim, heads, s=2):
-    return SimpleLayer2D(FFN(dim, heads, s))
+def FFN3D(dim, s=2):
+    return SimpleLayer2D(FFN(dim, s))
 
 
 class PreNormFFN3D(nn.Module):
-    def __init__(self, dim, heads, s=2):
+    def __init__(self, dim, s=2):
         super().__init__()
         self.ln = VideoLayerNorm(dim)
-        self.f = FFN3D(dim, heads, s)
+        self.f = FFN3D(dim, s)
 
     def forward(self, x):
         x = self.ln(x)
@@ -443,14 +451,12 @@ class VideoBlock(nn.Module):
                     PreNormChannelVideoAttention(dim, heads),
                     MBConv3D(dim),
                     PreNormLastQueryFullVideoAttention(dim, heads),
-                    PreNormFFN3D(dim, heads),
+                    PreNormFFN3D(dim),
                     MBConv3D(dim),
                 ]
             )
         self.layers = ReversibleSequential(layers, split_dim=2)
-        self.post_ln = SimpleLayer2D(nn.GroupNorm(heads, dim))
 
     def forward(self, x):
         x = self.layers(x)
-        x = self.post_ln(x)
         return x
