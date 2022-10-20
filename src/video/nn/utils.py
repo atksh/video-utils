@@ -17,6 +17,7 @@ def inverse_gamma_correction(x):
     x1 = x * 12.92
     x2 = 1.055 * x ** (1 / 2.4) - 0.055
     x = torch.where(x <= 0.0031308, x1, x2)
+    return x
 
 
 def soft_clip(x, lb, ub):
