@@ -7,8 +7,8 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 sys.path.append("src")
 
 from config import *
+from video.callback import SetPrecisionCallback
 from video.net import DataModule, Model
-from video.nn.callback import SetPrecisionCallback
 
 if __name__ == "__main__":
     cache_dir = "cache"
