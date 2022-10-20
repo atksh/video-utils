@@ -53,7 +53,7 @@ class DualScaleDownsample(nn.Module):
     def __init__(self):
         super().__init__()
         self.conv_hr = nn.Conv2d(3, 1, 1, bias=False)
-        self.conv_lr = nn.Conv2d(3, 2, 1, bias=False)
+        self.conv_lr = nn.Conv2d(3, 3, 1, bias=False)
         self.down = nn.AvgPool2d(2, 2)
 
     def forward(self, x):
@@ -66,11 +66,10 @@ class DualScaleUpsample(nn.Module):
     def __init__(self):
         super().__init__()
         self.up = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
-        self.conv = nn.Conv2d(3, 3, 1, bias=False)
+        self.conv = nn.Conv2d(1, 3, 1, bias=False)
 
     def forward(self, hr_x, lr_x):
-        x = torch.cat([hr_x, self.up(lr_x)], dim=1)
-        x = self.conv(x)
+        x = self.conv(hr_x) + self.up(lr_x)
         return x
 
 
@@ -182,6 +181,7 @@ class UpsampleWithRefrence(nn.Module):
     def __init__(self, low_dim, high_dim, scale=2, mode="bilinear"):
         super().__init__()
         self.mode = mode
+        self.low_dim = low_dim
         self.high_dim = high_dim
         self.to_ref = nn.Conv2d(
             low_dim, 2 * high_dim, kernel_size=3, padding=1, bias=False
@@ -207,6 +207,7 @@ class UpsampleWithRefrence(nn.Module):
 
         x = self.interpolate(lowres, size=size)
         b = x.shape[0]
+        print(lowres.shape, highres.shape, x.shape, self.low_dim, self.high_dim)
         ref = self.to_ref(x)
         ref = ref.reshape(b * high_dim, 2, *size)
         highres = highres.reshape(b * high_dim, 1, *size)

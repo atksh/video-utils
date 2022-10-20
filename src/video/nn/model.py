@@ -99,7 +99,6 @@ class Decoder(nn.Module):
         feats = [avg_video] + feats
         x = feats[-1]
         for up, post, feat in zip(self.ups, self.post_blocks, reversed(feats[:-1])):
-            print(x.shape, feat.shape)
             x = up(x, feat)
             x = post(x)
 
@@ -110,7 +109,7 @@ class Decoder(nn.Module):
         x = self.refine_hr(x)
         hr_x = self.fc_hr(x)
 
-        lr_x = lr_x.view(b * self.n_steps, 2, h, w)
+        lr_x = lr_x.view(b * self.n_steps, 3, h, w)
         hr_x = hr_x.view(b * self.n_steps, 1, h, w)
         x = self.dual_upsample(hr_x, lr_x)
         x = x.view(b, self.n_steps, 3, h, w)
