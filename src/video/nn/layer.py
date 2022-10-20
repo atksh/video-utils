@@ -21,11 +21,6 @@ class NonLinear(nn.Module):
         return F.silu(x)
 
 
-class Contiguous(nn.Module):
-    def forward(self, x):
-        return x.contiguous()
-
-
 class ReversibleSequential(nn.Module):
     def __init__(self, layers, split_dim):
         super().__init__()
