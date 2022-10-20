@@ -214,7 +214,9 @@ class UpsampleWithRefrence(nn.Module):
 
         b = lowres.shape[0]
         ref = self.up(self.to_ref(lowres))
-        ref = self.interpolate(ref, size=size)
+        h, w = ref.shape[-2:]
+        if h != size[0] or w != size[1]:
+            ref = self.interpolate(ref, size=size)
         ref = ref.view(b * high_dim, 2, *size)
         highres = highres.view(b * high_dim, 1, *size)
 
