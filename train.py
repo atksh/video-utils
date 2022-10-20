@@ -43,7 +43,7 @@ if __name__ == "__main__":
     trainer = pl.Trainer(
         accelerator="gpu",
         devices=1,
-        precision="bf16",
+        precision=16,
         max_epochs=max_epochs,
         log_every_n_steps=1,
         accumulate_grad_batches=total_batch_size // train_batch_size,

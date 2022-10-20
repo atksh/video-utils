@@ -195,7 +195,8 @@ class UpsampleWithRefrence(nn.Module):
         self.up = nn.Upsample(scale_factor=scale, mode=mode, align_corners=True)
 
     def interpolate(self, x, **kwargs):
-        return F.interpolate(x, mode=self.mode, align_corners=True, **kwargs)
+        x = F.interpolate(x, mode="nearest", **kwargs)
+        return x
 
     def merge(self, lowres, highres):
         upsampled = self.up(lowres)
@@ -233,13 +234,10 @@ class UpsampleWithRefrence(nn.Module):
 
 
 class MBConv(nn.Module):
-    def __init__(self, dim, s=4, kernel_size=3):
+    def __init__(self, dim, s=4):
         super().__init__()
-        padding = (kernel_size - 1) // 2
         self.p1 = nn.Conv2d(dim, dim * s, kernel_size=1, bias=False)
-        self.d1 = nn.Conv2d(
-            dim * s, dim * s, kernel_size=kernel_size, padding=padding, groups=dim * s
-        )
+        self.d1 = nn.Conv2d(dim * s, dim * s, kernel_size=3, padding=1, groups=dim * s)
         self.se = SELayer(dim * s)
         self.p2 = nn.Conv2d(dim * s, dim, kernel_size=1, bias=False)
         self.act = NonLinear()
