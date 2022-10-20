@@ -82,21 +82,24 @@ class Decoder(nn.Module):
         self.avg_pool = Layer2D(nn.AvgPool2d(2, 2))
         self.sigmoid = Sigmoid()
 
-        self.dual_downsample = Layer2D(DualScaleDownsample())
-        self.dual_upsample = Layer2D(DualScaleUpsample())
+        self.dual_upsample = DualScaleUpsample()
 
     def duplicate_last(self, x):
         return torch.cat([x, x[:, [-1]]], dim=1)
 
-    def forward(self, video, feats):
+    def forward(self, video, hr_video, lr_video, feats):
+        b = video.shape[0]
+        h, w = video.shape[-2:]
         video = self.duplicate_last(video)
+        hr_video = self.duplicate_last(hr_video)
+        lr_video = self.duplicate_last(lr_video)
         feats = [self.duplicate_last(feat) for feat in feats]
 
-        hr_video, lr_video = self.dual_downsample(video)
         avg_video = self.avg_pool(lr_video)
         feats = [avg_video] + feats
         x = feats[-1]
         for up, post, feat in zip(self.ups, self.post_blocks, reversed(feats[:-1])):
+            print(x.shape, feat.shape)
             x = up(x, feat)
             x = post(x)
 
@@ -107,9 +110,10 @@ class Decoder(nn.Module):
         x = self.refine_hr(x)
         hr_x = self.fc_hr(x)
 
-        lr_x = lr_x.view(lr_x.shape[0], self.n_steps, 2, lr_x.shape[2], lr_x.shape[3])
-        hr_x = hr_x.view(hr_x.shape[0], self.n_steps, 1, hr_x.shape[2], hr_x.shape[3])
+        lr_x = lr_x.view(b * self.n_steps, 2, h, w)
+        hr_x = hr_x.view(b * self.n_steps, 1, h, w)
         x = self.dual_upsample(hr_x, lr_x)
+        x = x.view(b, self.n_steps, 3, h, w)
         x = self.sigmoid(x)
         return x
 
@@ -129,21 +133,19 @@ class MergedModel:
 
     @ckpt_forward
     def backbone_forward(self, x):
-        bsz = x.shape[0]
-        hr_x, lr_x = self.decoder.dual_downsample(x)
-        hr_x = self.to_image(hr_x)
-        lr_x = self.to_image(lr_x)
-        feats = self.backbone(hr_x, lr_x)
-        return feats, bsz
+        hr_x, lr_x, feats = self.backbone(x)
+        return hr_x, lr_x, feats
 
     def encode(self, video):
-        feats, bsz = self.backbone_forward(video)
-        return self.encoder(feats, bsz)
-
-    def decode(self, video, feats):
-        return self.decoder(video, feats)
+        bsz = video.shape[0]
+        x = self.to_image(video)
+        hr_x, lr_x, feats = self.backbone_forward(x)
+        hr_x = self.to_video(hr_x, bsz)
+        lr_x = self.to_video(lr_x, bsz)
+        feats = self.encoder(feats, bsz)
+        return hr_x, lr_x, feats
 
     def __call__(self, video):
-        feats = self.encode(video)
-        rgb = self.decode(video, feats)
+        hr_video, lr_video, feats = self.encode(video)
+        rgb = self.decoder(video, hr_video, lr_video, feats)
         return rgb

@@ -1,4 +1,4 @@
-resolution = "426:240"
+resolution = "384:216"
 skip_rate = 1
 max_len = 32
 
