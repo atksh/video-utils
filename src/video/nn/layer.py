@@ -8,17 +8,23 @@ NEG_INF = -5000.0
 
 class Sigmoid(torch.nn.Module):
     def forward(self, x):
-        return torch.sigmoid(x)
+        x = x.float()
+        with torch.cuda.amp.autocast(enabled=False):
+            return torch.sigmoid(x)
 
 
 class Tanh(torch.nn.Module):
     def forward(self, x):
-        return torch.tanh(x)
+        x = x.float()
+        with torch.cuda.amp.autocast(enabled=False):
+            return torch.tanh(x)
 
 
 class Swish(torch.nn.Module):
     def forward(self, x):
-        return F.silu(x)
+        x = x.float()
+        with torch.cuda.amp.autocast(enabled=False):
+            return F.silu(x)
 
 
 class ReversibleSequential(nn.Module):
