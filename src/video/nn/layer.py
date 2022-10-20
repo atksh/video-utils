@@ -479,11 +479,11 @@ class VideoBlock(nn.Module):
         super().__init__()
         layers = []
         for i in range(n_layers):
-            layers.extend(
+            _layers = [MBConv3D(dim), PreNormTimeConv(dim)]
+            if i == 0:
+                _layers.append(PreNormConvGRU(dim))
+            _layers.extend(
                 [
-                    MBConv3D(dim),
-                    PreNormTimeConv(dim),
-                    PreNormConvGRU(dim) if i == 0 else nn.Identity(),
                     PreNormChannelVideoAttention(dim, heads),
                     MBConv3D(dim),
                     PreNormLastQueryFullVideoAttention(dim, heads),
@@ -491,6 +491,7 @@ class VideoBlock(nn.Module):
                     MBConv3D(dim),
                 ]
             )
+            layers.extend(_layers)
         self.layers = ReversibleSequential(layers, split_dim=2)
 
     def forward(self, x):
