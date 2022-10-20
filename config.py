@@ -14,5 +14,5 @@ enc_num_heads = [1, 2, 4, 8]
 enc_num_layers = [3, 6, 9, 12]
 dec_num_heads = [1, 1, 2, 4]
 dec_num_layers = [1, 2, 3, 4]
-n_steps = 6
+n_steps = 1
 last_dim = 16
