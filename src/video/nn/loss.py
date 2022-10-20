@@ -94,12 +94,3 @@ class MSSSIML1Loss(nn.Module):
             )
 
             return loss_mix.mean()
-
-
-class BCELoss(nn.Module):
-    def forward(self, x, y):
-        x = x.float()
-        y = y.float()
-        print(x.min(), x.max(), y.min(), y.max())
-        with torch.cuda.amp.autocast(enabled=False):
-            return F.binary_cross_entropy(x, y, reduction="mean")

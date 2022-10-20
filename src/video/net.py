@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from .dataset import VideoDataset
 from .nn.backbone import Backbone
-from .nn.loss import BCELoss, MSSSIML1Loss
+from .nn.loss import MSSSIML1Loss
 from .nn.model import Decoder, Encoder, MergedModel
 
 
@@ -131,12 +131,8 @@ class Model(pl.LightningModule):
         self.decoder = Decoder(
             front_feat_dims, dec_num_heads, dec_num_layers, last_dim, n_steps
         )
-        self.loss1 = MSSSIML1Loss()
-        self.loss2 = BCELoss()
+        self.loss = MSSSIML1Loss()
         self.model = MergedModel(self.backbone, self.encoder, self.decoder)
-
-    def loss(self, pred, y):
-        return 0.5 * (self.loss1(pred, y) + self.loss2(pred, y))
 
     def forward(self, x):
         return self.model(x)
