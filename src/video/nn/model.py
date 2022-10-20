@@ -4,6 +4,8 @@ from torch.nn import functional as F
 
 from .ckpt import ckpt_forward
 from .layer import (
+    DualScaleDownsample,
+    DualScaleUpsample,
     ImageReduction,
     ImageReduction3D,
     ImageToVideo,
@@ -13,7 +15,6 @@ from .layer import (
     VideoBlock,
     VideoToImage,
 )
-from .utils import RGB2YCbCr420, YCbCr420ToRGB, to_YCbCr420
 
 
 class Encoder(nn.Module):
@@ -67,28 +68,22 @@ class Decoder(nn.Module):
         self.ups = nn.ModuleList(ups)
         self.post_blocks = nn.ModuleList(post_blocks)
 
-        self.last_up1 = UpsampleWithRefrence(last_dim, 3)
-        self.refine1 = ImageReduction(last_dim + 6, last_dim, 3)
-        self.fc_cbcr = nn.Conv2d(last_dim, 2 * self.n_steps, 1)
+        self.last_up_lr = UpsampleWithRefrence(last_dim, 3)
+        self.refine_lr = ImageReduction(last_dim + 6, last_dim, 3)
+        self.fc_lr = nn.Conv2d(last_dim, 2 * self.n_steps, 1)
 
-        self.last_up2 = UpsampleWithRefrence(last_dim, 1)
-        self.refine2 = ImageReduction(last_dim + 2, last_dim, 3)
-        self.fc_l = nn.Conv2d(last_dim, 1 * self.n_steps, 1)
+        self.last_up_hr = UpsampleWithRefrence(last_dim, 1)
+        self.refine_hr = ImageReduction(last_dim + 2, last_dim, 3)
+        self.fc_hr = nn.Conv2d(last_dim, 1 * self.n_steps, 1)
 
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
-        self.to_YCbCr420 = RGB2YCbCr420()
-        self.from_YCbCr420 = YCbCr420ToRGB()
 
         self.avg_pool = Layer2D(nn.AvgPool2d(2, 2))
         self.sigmoid = Sigmoid()
 
-    def avg(self, video):
-        hr_l, cbcr = self.to_YCbCr420(video)
-        l = self.avg_pool(hr_l)
-        hr = torch.cat([l, cbcr], dim=2)
-        lr = self.avg_pool(hr)
-        return hr_l, hr, lr
+        self.dual_downsample = Layer2D(DualScaleDownsample())
+        self.dual_upsample = Layer2D(DualScaleUpsample())
 
     def duplicate_last(self, x):
         return torch.cat([x, x[:, [-1]]], dim=1)
@@ -96,26 +91,27 @@ class Decoder(nn.Module):
     def forward(self, video, feats):
         video = self.duplicate_last(video)
         feats = [self.duplicate_last(feat) for feat in feats]
-        l, hr, lr = self.avg(video)
-        feats = [lr] + feats
+
+        hr_video, lr_video = self.dual_downsample(video)
+        avg_video = self.avg_pool(lr_video)
+        feats = [avg_video] + feats
         x = feats[-1]
         for up, post, feat in zip(self.ups, self.post_blocks, reversed(feats[:-1])):
             x = up(x, feat)
             x = post(x)
 
-        x = self.last_up1(x[:, -1], hr[:, -1])
-        x = self.refine1(x)
-        cbcr = self.fc_cbcr(x)
-        x = self.last_up2(x, l[:, -1])
-        x = self.refine2(x)
-        l = self.fc_l(x)
+        x = self.last_up_lr(x[:, -1], lr_video[:, -1])
+        x = self.refine_lr(x)
+        lr_x = self.fc_lr(x)
+        x = self.last_up_hr(x, hr_video[:, -1])
+        x = self.refine_hr(x)
+        hr_x = self.fc_hr(x)
 
-        l = l.view(l.shape[0], self.n_steps, -1, l.shape[2], l.shape[3])
-        cbcr = cbcr.view(cbcr.shape[0], self.n_steps, -1, cbcr.shape[2], cbcr.shape[3])
-        l = self.sigmoid(l)
-        cbcr = self.sigmoid(cbcr)
-        rgb = self.from_YCbCr420(l, cbcr)
-        return rgb
+        lr_x = lr_x.view(lr_x.shape[0], self.n_steps, 2, lr_x.shape[2], lr_x.shape[3])
+        hr_x = hr_x.view(hr_x.shape[0], self.n_steps, 1, hr_x.shape[2], hr_x.shape[3])
+        x = self.dual_upsample(hr_x, lr_x)
+        x = self.sigmoid(x)
+        return x
 
 
 class MergedModel:
@@ -134,9 +130,10 @@ class MergedModel:
     @ckpt_forward
     def backbone_forward(self, x):
         bsz = x.shape[0]
-        x = self.to_image(x)
-        l, cbcr = to_YCbCr420(x)
-        feats = self.backbone(l, cbcr)
+        hr_x, lr_x = self.decoder.dual_downsample(x)
+        hr_x = self.to_image(hr_x)
+        lr_x = self.to_image(lr_x)
+        feats = self.backbone(hr_x, lr_x)
         return feats, bsz
 
     def encode(self, video):
