@@ -338,12 +338,13 @@ class TimeEmbedding(nn.Module):
             NonLinear(),
             nn.Linear(dim, dim),
         )
+        self.ln = VideoLayerNorm(dim)
 
     def forward(self, video):
         l = video.shape[1]
-        t = torch.linspace(0, 1, l, device=video.device).view(1, l)
+        t = torch.linspace(0, 1, l, device=video.device).view(l, 1)
         emb = self.mlp(t).view(1, l, -1, 1, 1)
-        return emb
+        return self.ln(video + emb)
 
 
 class ChannelVideoAttention(nn.Module):
@@ -499,12 +500,10 @@ def ImageReduction3D(in_dim, out_dim, n_layers):
 class VideoBlock(nn.Module):
     def __init__(self, dim, heads, n_layers):
         super().__init__()
+        self.time_emb = TimeEmbedding(dim)
         layers = []
-        for i in range(n_layers):
-            _layers = []
-            if i == 0:
-                _layers.append(TimeEmbedding(dim))
-            _layers.extend(
+        for _ in range(n_layers):
+            layers.extend(
                 [
                     MBConv3D(dim),
                     PreNormTimeConv(dim),
@@ -516,9 +515,9 @@ class VideoBlock(nn.Module):
                     MBConv3D(dim),
                 ]
             )
-            layers.extend(_layers)
         self.layers = ReversibleSequential(layers, split_dim=2)
 
     def forward(self, x):
+        x = self.time_emb(x)
         x = self.layers(x)
         return x
