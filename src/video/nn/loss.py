@@ -97,9 +97,8 @@ class MSSSIML1Loss(nn.Module):
 
 
 class BCELoss(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.bce = nn.BCELoss()
-
     def forward(self, x, y):
-        return self.bce(x, y)
+        x = x.float()
+        y = y.float()
+        with torch.cuda.amp.autocast(enabled=False):
+            return F.binary_cross_entropy(x, y, reduction="mean")
