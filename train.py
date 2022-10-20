@@ -8,6 +8,7 @@ sys.path.append("src")
 
 from config import *
 from video.net import DataModule, Model
+from video.nn.callback import SetPrecisionCallback
 
 if __name__ == "__main__":
     cache_dir = "cache"
@@ -39,6 +40,7 @@ if __name__ == "__main__":
         n_steps,
     )
 
+    precision_callback = SetPrecisionCallback()
     checkpoint_callback = ModelCheckpoint(save_last=True, every_n_train_steps=100)
     trainer = pl.Trainer(
         accelerator="gpu",
@@ -55,6 +57,6 @@ if __name__ == "__main__":
         limit_train_batches=1.0 / skip_rate,
         limit_val_batches=1.0 / skip_rate,
         limit_test_batches=1.0 / skip_rate,
-        callbacks=[checkpoint_callback],
+        callbacks=[precision_callback, checkpoint_callback],
     )
     trainer.fit(model=model, datamodule=dl)
