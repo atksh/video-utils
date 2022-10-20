@@ -328,6 +328,24 @@ class TimeConv(nn.Module):
         return video
 
 
+class TimeEmbedding(nn.Module):
+    def __init__(self, dim):
+        super().__init__()
+        self.mlp = nn.Sequential(
+            nn.Linear(1, dim),
+            NonLinear(),
+            nn.Linear(dim, dim),
+            NonLinear(),
+            nn.Linear(dim, dim),
+        )
+
+    def forward(self, video):
+        l = video.shape[1]
+        t = torch.linspace(0, 1, l, device=video.device).view(1, l)
+        emb = self.mlp(t).view(1, l, -1, 1, 1)
+        return emb
+
+
 class ChannelVideoAttention(nn.Module):
     def __init__(self, dim, heads):
         super().__init__()
@@ -483,11 +501,14 @@ class VideoBlock(nn.Module):
         super().__init__()
         layers = []
         for i in range(n_layers):
-            _layers = [MBConv3D(dim), PreNormTimeConv(dim)]
+            _layers = []
             if i == 0:
-                _layers.append(PreNormConvGRU(dim))
+                _layers.append(TimeEmbedding(dim))
             _layers.extend(
                 [
+                    MBConv3D(dim),
+                    PreNormTimeConv(dim),
+                    MBConv3D(dim),
                     PreNormChannelVideoAttention(dim, heads),
                     MBConv3D(dim),
                     PreNormLastQueryFullVideoAttention(dim, heads),
