@@ -6,19 +6,24 @@ from torch.nn import functional as F
 NEG_INF = -5000.0
 
 
-class Sigmoid(torch.nn.Module):
+class Sigmoid(nn.Module):
     def forward(self, x):
         return torch.sigmoid(x)
 
 
-class Tanh(torch.nn.Module):
+class Tanh(nn.Module):
     def forward(self, x):
         return torch.tanh(x)
 
 
-class NonLinear(torch.nn.Module):
+class NonLinear(nn.Module):
     def forward(self, x):
         return F.silu(x)
+
+
+class Contiguous(nn.Module):
+    def forward(self, x):
+        return x.contiguous()
 
 
 class ReversibleSequential(nn.Module):
@@ -40,13 +45,13 @@ class ReversibleSequential(nn.Module):
 class VideoToImage(nn.Module):
     def forward(self, x):
         _, _, c, h, w = x.shape
-        return x.reshape(-1, c, h, w)
+        return x.view(-1, c, h, w)
 
 
 class ImageToVideo(nn.Module):
     def forward(self, x, batch_size: int):
         _, c, h, w = x.shape
-        return x.reshape(batch_size, -1, c, h, w)
+        return x.view(batch_size, -1, c, h, w)
 
 
 class DualScaleDownsample(nn.Module):
@@ -134,8 +139,8 @@ class SELayer(nn.Module):
 
     def forward(self, x):
         b, c, _, _ = x.size()
-        y = self.avg_pool(x).reshape(b, c)
-        y = self.fc(y).reshape(b, c, 1, 1)
+        y = self.avg_pool(x).view(b, c)
+        y = self.fc(y).view(b, c, 1, 1)
         return x * y.expand_as(x)
 
 
@@ -214,12 +219,12 @@ class UpsampleWithRefrence(nn.Module):
         x = self.interpolate(lowres, size=size)
         b = x.shape[0]
         ref = self.to_ref(x)
-        ref = ref.reshape(b * high_dim, 2, *size)
-        highres = highres.reshape(b * high_dim, 1, *size)
+        ref = ref.view(b * high_dim, 2, *size)
+        highres = highres.view(b * high_dim, 1, *size)
 
         out = self.transform(ref, highres)
-        out = out.reshape(b, high_dim, *size)
-        highres = highres.reshape(b, high_dim, *size)
+        out = out.view(b, high_dim, *size)
+        highres = highres.view(b, high_dim, *size)
         return self.merge(lowres, torch.cat([out, highres], dim=1))
 
     def transform(self, ref_xy, source):
@@ -315,11 +320,11 @@ class TimeConv(nn.Module):
     def forward(self, video):
         b, t, c, h, w = video.shape
         # b t c h w -> (b h w) c t"
-        video = video.permute(0, -1, -2, 1, 2).reshape(-1, c, t)
+        video = video.permute(0, -1, -2, 1, 2).contiguous().view(-1, c, t)
         video = F.pad(video, (1, 0))
         video = self.conv(video)
         # (b h w) c t -> b t c h w, h=h, w=w, b=b
-        video = video.reshape(b, h, w, c, t)
+        video = video.view(b, h, w, c, t)
         video = video.permute(0, -1, -2, 1, 2)
         return video
 
@@ -343,20 +348,21 @@ class ChannelVideoAttention(nn.Module):
         q = self.Q(q.mean(dim=[-1, -2]))  # (batch_size, len_s, dim)
         k = self.K(k.mean(dim=[-1, -2]))  # (batch_size, len_t, dim)
         # b m c h w -> b (h w) m c
-        v = v.permute(0, -1, -2, 1, 2)
-        v = v.reshape(bsz, height * width, len_t, -1)
+        v = v.permute(0, -1, -2, 1, 2).contiguous()
+        v = v.view(bsz, height * width, len_t, -1)
         v = self.V(v)
 
-        q = q.reshape(bsz, len_s, self.heads, -1).permute(0, 2, 1, 3)
-        k = k.reshape(bsz, len_t, self.heads, -1).permute(0, 2, 3, 1)
-        v = v.reshape(bsz, height * width, len_t, self.heads, -1)
+        q = q.view(bsz, len_s, self.heads, -1).permute(0, 2, 1, 3)
+        k = k.view(bsz, len_t, self.heads, -1).permute(0, 2, 3, 1)
+        v = v.view(bsz, height * width, len_t, self.heads, -1)
         v = v.permute(0, 1, 3, 2, 4)  # (bsz, pixel, heads, len_t, dim // heads)
 
         q = q * self.scale
         attn = torch.matmul(q, k).softmax(dim=-1)
         out = torch.matmul(attn.unsqueeze(1), v)
         # b (height width) h n d -> b n (h d) height width
-        out = out.permute(0, 3, 2, 4, 1).reshape(bsz, len_s, -1, height, width)
+        out = out.permute(0, 3, 2, 4, 1).contiguous()
+        out = out.view(bsz, len_s, -1, height, width)
         return out
 
 
@@ -377,25 +383,29 @@ class FullVideoAttention(nn.Module):
         len_t = k.shape[1]
         height, width = q.shape[-2:]
         # b m c h w -> b (h w) m c
-        q = q.permute(0, -1, -2, 1, 2).reshape(bsz, height * width, len_s, -1)
-        k = k.permute(0, -1, -2, 1, 2).reshape(bsz, height * width, len_t, -1)
-        v = v.permute(0, -1, -2, 1, 2).reshape(bsz, height * width, len_t, -1)
+        q = q.permute(0, -1, -2, 1, 2).contiguous()
+        q = q.view(bsz, height * width, len_s, -1)
+        k = k.permute(0, -1, -2, 1, 2).contiguous()
+        k = k.view(bsz, height * width, len_t, -1)
+        v = v.permute(0, -1, -2, 1, 2).contiguous()
+        v = v.view(bsz, height * width, len_t, -1)
         q = self.Q(q)
         k = self.K(k)
         v = self.V(v)
 
-        q = q.reshape(bsz, height * width, len_s, self.heads, -1)
+        q = q.view(bsz, height * width, len_s, self.heads, -1)
         q = q.permute(0, 1, 3, 2, 4)
-        k = k.reshape(bsz, height * width, len_t, self.heads, -1)
+        k = k.view(bsz, height * width, len_t, self.heads, -1)
         k = k.permute(0, 1, 3, 4, 2)
-        v = v.reshape(bsz, height * width, len_t, self.heads, -1)
+        v = v.view(bsz, height * width, len_t, self.heads, -1)
         v = v.permute(0, 1, 3, 2, 4)
 
         q = q * self.scale
         attn = torch.matmul(q, k).softmax(dim=-1)
         out = torch.matmul(attn, v)
         # b (height width) h n d -> b n (h d) height width
-        out = out.permute(0, 3, 2, 4, 1).reshape(bsz, len_s, -1, height, width)
+        out = out.permute(0, 3, 2, 4, 1).contiguous()
+        out = out.view(bsz, len_s, -1, height, width)
         return out
 
 

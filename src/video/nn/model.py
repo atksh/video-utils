@@ -4,6 +4,7 @@ from torch.nn import functional as F
 
 from .ckpt import ckpt_forward
 from .layer import (
+    Contiguous,
     DualScaleDownsample,
     DualScaleUpsample,
     ImageReduction,
@@ -34,11 +35,13 @@ class Encoder(nn.Module):
             feat_time_blocks.append(VideoBlock(inner_dim, heads, num_layers[i]))
         self.feat_blocks = nn.ModuleList(feat_blocks)
         self.feat_time_blocks = nn.ModuleList(feat_time_blocks)
+        self.contiguous = Contiguous()
 
     def forward(self, feats, bsz):
         feats = [self.feat_blocks[i](feat) for i, feat in enumerate(feats)]
         feats = [self.to_video(feat, bsz) for feat in feats]
         feats = [self.feat_time_blocks[i](feat) for i, feat in enumerate(feats)]
+        feats = [self.contiguous(feat) for feat in feats]
         return feats
 
 
