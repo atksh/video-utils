@@ -8,17 +8,17 @@ NEG_INF = -5000.0
 
 class Sigmoid(nn.Module):
     def forward(self, x):
-        return F.hardsigmoid(x)
+        return torch.sigmoid(x)
 
 
 class Tanh(nn.Module):
     def forward(self, x):
-        return F.hardtanh(x)
+        return torch.tanh(x)
 
 
 class NonLinear(nn.Module):
     def forward(self, x):
-        return F.hardswish(x)
+        return F.swish(x)
 
 
 class ReversibleSequential(nn.Module):
