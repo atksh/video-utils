@@ -478,12 +478,12 @@ class VideoBlock(nn.Module):
     def __init__(self, dim, heads, n_layers):
         super().__init__()
         layers = []
-        for _ in range(n_layers):
+        for i in range(n_layers):
             layers.extend(
                 [
                     MBConv3D(dim),
                     PreNormTimeConv(dim),
-                    PreNormConvGRU(dim),
+                    PreNormConvGRU(dim) if i == 0 else nn.Identity(),
                     PreNormChannelVideoAttention(dim, heads),
                     MBConv3D(dim),
                     PreNormLastQueryFullVideoAttention(dim, heads),
