@@ -503,12 +503,8 @@ class VideoBlock(nn.Module):
                 [
                     MBConv3D(dim),
                     PreNormTimeConv(dim),
-                    MBConv3D(dim),
-                    PreNormChannelVideoAttention(dim, heads),
-                    MBConv3D(dim),
                     PreNormLastQueryFullVideoAttention(dim, heads),
                     PreNormFFN3D(dim),
-                    MBConv3D(dim),
                 ]
             )
         self.layers = ReversibleSequential(layers, split_dim=2)
