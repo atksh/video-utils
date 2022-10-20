@@ -195,7 +195,10 @@ class UpsampleWithRefrence(nn.Module):
         self.up = nn.Upsample(scale_factor=scale, mode=mode, align_corners=True)
 
     def interpolate(self, x, **kwargs):
-        x = F.interpolate(x, mode="nearest", **kwargs)
+        dtype = x.dtype
+        x = x.to(torch.half)
+        x = F.interpolate(x, mode=self.mode, align_corners=True, **kwargs)
+        x = x.to(dtype)
         return x
 
     def merge(self, lowres, highres):
