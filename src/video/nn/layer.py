@@ -281,7 +281,7 @@ def VideoLayerNorm(dim, eps=1e-5):
     return SimpleLayer2D(LayerNorm2D(dim, eps))
 
 
-class _ConvGRU(nn.Module):
+class ConvGRU(nn.Module):
     def __init__(self, dim):
         super().__init__()
         self.conv_z = nn.Conv2d(2 * dim, dim, kernel_size=1)
@@ -305,10 +305,6 @@ class _ConvGRU(nn.Module):
             out.append(h)
         out = torch.stack(out, dim=1)
         return out
-
-
-def ConvGRU(dim):
-    return torch.jit.script(_ConvGRU(dim))
 
 
 class TimeConv(nn.Module):
