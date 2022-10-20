@@ -18,7 +18,7 @@ class Tanh(nn.Module):
 
 class NonLinear(nn.Module):
     def forward(self, x):
-        return F.swish(x)
+        return F.silu(x)
 
 
 class ReversibleSequential(nn.Module):
