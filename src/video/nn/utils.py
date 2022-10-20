@@ -67,7 +67,6 @@ def YCbCr2RGB(ycbcr):
 
 
 def to_YCbCr420(rgb):
-    rgb = inverse_gamma_correction(rgb)
     ycbcr = RGB2YCbCr(rgb)
     l = ycbcr[:, [0], :, :]
     cb = F.avg_pool2d(ycbcr[:, [1], :, :], kernel_size=2, stride=2)
@@ -83,7 +82,6 @@ def from_YCbCr420(l, cbcr):
     cr = F.interpolate(cr, scale_factor=2, mode="bilinear", align_corners=True)
     ycbcr = torch.cat([l, cb, cr], dim=1)
     rgb = YCbCr2RGB(ycbcr)
-    rgb = gamma_correction(rgb)
     return rgb
 
 
