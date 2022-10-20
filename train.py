@@ -12,7 +12,7 @@ from video.net import DataModule, Model
 if __name__ == "__main__":
     cache_dir = "cache"
     path = list(glob.glob("data/*.mp4"))
-    path = ["video2.mp4"]
+    # path = ["video2.mp4"]
     print(path)
 
     max_epochs = 1000
