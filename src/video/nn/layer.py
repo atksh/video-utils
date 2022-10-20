@@ -207,7 +207,6 @@ class UpsampleWithRefrence(nn.Module):
 
         x = self.interpolate(lowres, size=size)
         b = x.shape[0]
-        print(lowres.shape, highres.shape, x.shape, self.low_dim, self.high_dim)
         ref = self.to_ref(x)
         ref = ref.reshape(b * high_dim, 2, *size)
         highres = highres.reshape(b * high_dim, 1, *size)

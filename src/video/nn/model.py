@@ -70,7 +70,7 @@ class Decoder(nn.Module):
 
         self.last_up_lr = UpsampleWithRefrence(last_dim, 3)
         self.refine_lr = ImageReduction(last_dim + 6, last_dim, 3)
-        self.fc_lr = nn.Conv2d(last_dim, 2 * self.n_steps, 1)
+        self.fc_lr = nn.Conv2d(last_dim, 3 * self.n_steps, 1)
 
         self.last_up_hr = UpsampleWithRefrence(last_dim, 1)
         self.refine_hr = ImageReduction(last_dim + 2, last_dim, 3)
@@ -109,7 +109,7 @@ class Decoder(nn.Module):
         x = self.refine_hr(x)
         hr_x = self.fc_hr(x)
 
-        lr_x = lr_x.view(b * self.n_steps, 3, h, w)
+        lr_x = lr_x.view(b * self.n_steps, 3, h // 2, w // 2)
         hr_x = hr_x.view(b * self.n_steps, 1, h, w)
         x = self.dual_upsample(hr_x, lr_x)
         x = x.view(b, self.n_steps, 3, h, w)

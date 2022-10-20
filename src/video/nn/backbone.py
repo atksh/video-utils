@@ -13,14 +13,14 @@ class Backbone(nn.Module):
         )
 
         blocks = nn.ModuleList([m.stages[i] for i in range(4)])
-        self.conv_hr = nn.Conv2d(1, 1, kernel_size=2, stride=2, bias=False)
+        self.conv_hr = nn.Conv2d(1, 3, kernel_size=2, stride=2, bias=False)
         self.stem = m.stem
         self.blocks = nn.ModuleList(blocks)
         self.dual_downsample = DualScaleDownsample()
 
     def forward(self, x):
         hr_x, lr_x = self.dual_downsample(x)
-        x = torch.cat([self.conv_hr(hr_x), lr_x], dim=1)
+        x = self.conv_hr(hr_x) + lr_x
         x = self.stem(x)
         features = []
         for block in self.blocks:
