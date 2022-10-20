@@ -81,8 +81,7 @@ def from_YCbCr420(l, cbcr):
     cr = cbcr[:, [1], :, :]
     cb = F.interpolate(cb, scale_factor=2, mode="bilinear", align_corners=True)
     cr = F.interpolate(cr, scale_factor=2, mode="bilinear", align_corners=True)
-    cbcr = torch.cat([cb, cr], dim=1)
-    ycbcr = torch.cat([l, cbcr], dim=1)
+    ycbcr = torch.cat([l, cb, cr], dim=1)
     rgb = YCbCr2RGB(ycbcr)
     rgb = gamma_correction(rgb)
     return rgb

@@ -1,5 +1,4 @@
 import argparse
-import glob
 import os
 import shutil
 import sys
@@ -33,7 +32,7 @@ if __name__ == "__main__":
     )
 
     version = args.version
-    ckpt_path = glob.glob(f"lightning_logs/version_{version}/checkpoints/*.ckpt")[-1]
+    ckpt_path = f"lightning_logs/version_{version}/checkpoints/last.ckpt"
     model = Model.load_from_checkpoint(
         ckpt_path,
         map_location="cpu",
