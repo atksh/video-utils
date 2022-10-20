@@ -49,6 +49,18 @@ class ImageToVideo(nn.Module):
         return x.view(batch_size, -1, c, h, w)
 
 
+class Upsample(nn.Module):
+    def __init__(self, scale=2):
+        super().__init__()
+        self.scale = scale
+
+    def forward(self, x):
+        x = F.interpolate(
+            x, scale_factor=self.scale, mode="bilinear", align_corners=True
+        )
+        return x
+
+
 class DualScaleDownsample(nn.Module):
     def __init__(self):
         super().__init__()
@@ -65,7 +77,7 @@ class DualScaleDownsample(nn.Module):
 class DualScaleUpsample(nn.Module):
     def __init__(self):
         super().__init__()
-        self.up = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
+        self.up = Upsample(scale=2)
         self.conv = nn.Conv2d(1, 3, 1, bias=False)
         self.mlp = nn.Sequential(
             nn.Conv2d(3, 12, 1),
@@ -192,7 +204,7 @@ class UpsampleWithRefrence(nn.Module):
         self.to_ref = nn.Conv2d(
             low_dim, 2 * high_dim, kernel_size=3, padding=1, bias=False
         )
-        self.up = nn.Upsample(scale_factor=scale, mode=mode, align_corners=True)
+        self.up = Upsample(scale)
 
     def interpolate(self, x, **kwargs):
         x = F.interpolate(x, mode="nearest", **kwargs)
