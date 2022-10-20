@@ -1,4 +1,4 @@
-resolution = "384:216"
+resolution = "448:252"
 skip_rate = 1
 max_len = 32
 
@@ -15,4 +15,4 @@ enc_num_layers = [3, 6, 9, 12]
 dec_num_heads = [1, 1, 2, 4]
 dec_num_layers = [1, 2, 3, 4]
 n_steps = 4
-last_dim = 32
+last_dim = 16
