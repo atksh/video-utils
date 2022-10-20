@@ -16,7 +16,7 @@ class Tanh(torch.nn.Module):
         return torch.tanh(x)
 
 
-class Swish(torch.nn.Module):
+class NonLinear(torch.nn.Module):
     def forward(self, x):
         return F.silu(x)
 
@@ -69,7 +69,7 @@ class DualScaleUpsample(nn.Module):
         self.conv = nn.Conv2d(1, 3, 1, bias=False)
         self.mlp = nn.Sequential(
             nn.Conv2d(3, 12, 1),
-            Swish(),
+            NonLinear(),
             nn.Conv2d(12, 3, 1),
         )
 
@@ -127,7 +127,7 @@ class SELayer(nn.Module):
         intermed_dim = max(dim // reduction, 2)
         self.fc = nn.Sequential(
             nn.Linear(dim, intermed_dim, bias=False),
-            Swish(),
+            NonLinear(),
             nn.Linear(intermed_dim, dim, bias=False),
             Sigmoid(),
         )
@@ -145,7 +145,7 @@ class LRASPP(nn.Module):
         self.aspp1 = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, 1, bias=False),
             LayerNorm2D(out_channels),
-            Swish(),
+            NonLinear(),
         )
         self.aspp2 = nn.Sequential(
             nn.AdaptiveAvgPool2d(1),
@@ -174,7 +174,7 @@ class FFN(nn.Module):
             padding=0,
             bias=False,
         )
-        self.act = Swish()
+        self.act = NonLinear()
 
     def forward(self, x):
         x1, x2 = self.wi(x).chunk(2, dim=1)
@@ -242,7 +242,7 @@ class MBConv(nn.Module):
         )
         self.se = SELayer(dim * s)
         self.p2 = nn.Conv2d(dim * s, dim, kernel_size=1, bias=False)
-        self.act = Swish()
+        self.act = NonLinear()
         self.ln1 = LayerNorm2D(dim)
         self.ln2 = LayerNorm2D(dim * s)
 
