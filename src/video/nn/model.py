@@ -109,8 +109,8 @@ class Decoder(nn.Module):
         x = self.refine_hr(x)
         hr_x = self.fc_hr(x)
 
-        lr_x = lr_x.view(b * self.n_steps, 3, h // 2, w // 2)
-        hr_x = hr_x.view(b * self.n_steps, 1, h, w)
+        lr_x = lr_x.reshape(b * self.n_steps, 3, h // 2, w // 2)
+        hr_x = hr_x.reshape(b * self.n_steps, 1, h, w)
         x = self.dual_upsample(hr_x, lr_x)
         x = x.view(b, self.n_steps, 3, h, w)
         x = self.sigmoid(x)
