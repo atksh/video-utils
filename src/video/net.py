@@ -123,7 +123,7 @@ class Model(pl.LightningModule):
     ):
         super().__init__()
         self.encoder = Encoder(in_dim, stem_dim, widths, depths, heads, drop_p)
-        self.decoder = Decoder(in_dim, stem_dim, widths, depths, heads, drop_p)
+        self.decoder = Decoder(in_dim, stem_dim, widths, depths, heads)
         self.loss = MSSSIML1Loss()
 
     def forward(self, video):
