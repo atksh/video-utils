@@ -163,7 +163,10 @@ class Stage(nn.Module):
         super().__init__()
         self.ln = LayerNorm2D(in_dim)
         if mode == "down":
-            self.up_or_down = nn.Conv2d(in_dim, out_dim, 2, stride=2, bias=False)
+            self.up_or_down = nn.Sequential(
+                nn.Conv2d(in_dim, out_dim, 1, bias=False),
+                nn.Conv2d(out_dim, out_dim, 2, stride=2, groups=out_dim, bias=False),
+            )
         elif mode == "up":
             self.up_or_down = nn.Sequential(
                 nn.Conv2d(in_dim, out_dim * 4, 1, bias=False),
