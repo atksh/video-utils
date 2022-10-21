@@ -54,11 +54,14 @@ class Decoder(nn.Module):
         )
 
     def resize_like(self, x, ref):
-        bsz = x.shape[0]
+        bsz = None
         size = ref.shape[-2:]
-        x = self.to_image(x)
+        if x.ndim == 5:
+            bsz = x.shape[0]
+            x = self.to_image(x)
         x = F.interpolate(x, size=size, mode="bilinear", align_corners=True)
-        x = self.to_video(x, bsz)
+        if bsz is not None:
+            x = self.to_video(x, bsz)
         return x
 
     def duplicate_last(self, x):
