@@ -2,6 +2,7 @@ import multiprocessing as mp
 import os
 import shutil
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from typing import List
 
 import av
@@ -156,13 +157,21 @@ class Video:
         """
         keyframes_indices = self.find_keyframe_timestamps()
 
+        futures = []
+        with ThreadPoolExecutor(max_workers=len(keyframes_indices)) as executor:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                for i in range(len(keyframes_indices) - 1):
+                    start_frame = keyframes_indices[i]
+                    end_frame = keyframes_indices[i + 1]
+                    output_path = f"{temp_dir}/{i}.mp4"
+                    futures.append(
+                        executor.submit(
+                            self._split, start_frame, end_frame, output_path
+                        )
+                    )
         out = []
-        with tempfile.TemporaryDirectory() as temp_dir:
-            for i in tqdm(range(len(keyframes_indices) - 1)):
-                start_frame = keyframes_indices[i]
-                end_frame = keyframes_indices[i + 1]
-                output_path = f"{temp_dir}/{i}.mp4"
-                out.append(self._split(start_frame, end_frame, output_path))
+        for future in tqdm(futures):
+            out.append(future.result())
         return out
 
     def get_all_frames(self):
