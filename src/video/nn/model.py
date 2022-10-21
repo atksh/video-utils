@@ -3,7 +3,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from .backbone import Backbone
-from .layer import ImageToVideo, Layer2D, Sigmoid, Stage, VideoBlock, VideoToImage
+from .layer import ImageToVideo, Layer2D, Stage, VideoBlock, VideoToImage
 
 
 class Encoder(nn.Module):
@@ -54,8 +54,7 @@ class Decoder(nn.Module):
             nn.Conv2d(last_dim, last_dim, 3, padding=1),
             nn.GroupNorm(1, last_dim),
             nn.SiLU(),
-            nn.Conv2d(last_dim, out_dim * 2, 3, padding=1),
-            Sigmoid(),
+            nn.Conv2d(last_dim, out_dim * 2 + 2, 3, padding=1),
         )
 
     def resize_like(self, x, ref):
@@ -92,6 +91,10 @@ class Decoder(nn.Module):
         x = self.mlp(x)
         x = self.resize_like(x, last_video)
         # now x is (B, C, H, W)
-        x, s = x.chunk(2, dim=1)
-        x = last_video * s + x * (1 - s)
+        x, s, cord = x.chunk(3, dim=1)
+        cord_x = cord[..., [0]].softmax(dim=-1) * 2 - 1
+        cord_y = cord[..., [1]].softmax(dim=-2) * 2 - 1
+        cord = torch.cat([cord_x, cord_y], dim=-1)
+        ref = F.grid_sample(last_video, cord, mode="bilinear", align_corners=True)
+        x = ref * s + x * (1 - s)
         return x.unsqueeze(1)
