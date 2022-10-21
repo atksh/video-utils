@@ -3,6 +3,8 @@ import torch.nn.functional as F
 from torch import nn
 from torchjpeg.dct import block_dct, block_idct, blockify, deblockify
 
+from .ckpt import ckpt_forward
+
 
 class BlockDCTSandwich(nn.Module):
     def __init__(self, module: nn.Module, block_size: int):
@@ -36,6 +38,7 @@ class BlockDCTSandwich(nn.Module):
         out = torch.arange(b) * out[..., 0] + out[..., 1]
         return out.view(1, 1, 1, -1)
 
+    @ckpt_forward
     def forward(self, x):
         # nchw->nclb^2 where b = block_size
         bsz, ch, *size = x.shape
