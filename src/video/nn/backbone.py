@@ -134,8 +134,13 @@ class Block(nn.Module):
         drop_p=0.1,
     ):
         super().__init__()
-        self.conv = DCTFreqConv(
-            dim, dim, groups=dim, window_size=window_size, block_size=block_size
+        self.conv = nn.Conv2d(
+            dim,
+            dim,
+            groups=dim,
+            kernel_size=7,
+            padding=3,
+            bias=False,
         )
         self.ln = LayerNorm2D(dim)
         self.mlp = nn.Sequential(
