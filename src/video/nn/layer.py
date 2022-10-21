@@ -177,7 +177,7 @@ class Stage(nn.Module):
         super().__init__()
         self.ln = LayerNorm2D(in_dim)
         if mode == "down":
-            self.up_or_down = nn.Conv2d(in_dim, out_dim, 2, stride=2)
+            self.up_or_down = nn.Conv2d(in_dim, out_dim, 2, stride=2, bias=False)
         elif mode == "up":
             self.up_or_down = Upsample(scale=2)
         elif mode == "same":

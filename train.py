@@ -30,6 +30,7 @@ if __name__ == "__main__":
         skip_rate=skip_rate,
     )
     model = Model(
+        backbone_depths,
         backbone_feat_dims,
         front_feat_dims,
         enc_num_heads,

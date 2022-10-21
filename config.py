@@ -8,6 +8,7 @@ train_batch_size = 16
 predict_batch_size = 4
 fps = 30
 
+backbone_depths = [4, 4, 16, 4]
 feat_dims = [16, 32, 64, 128]
 backbone_feat_dims = feat_dims
 front_feat_dims = feat_dims
