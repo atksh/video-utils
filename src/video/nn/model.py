@@ -11,7 +11,7 @@ class Encoder(nn.Module):
         super().__init__()
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
-        self.backbone = Backbone(in_dim, stem_dim, widths, depths, drop_p)
+        self.backbone = Backbone(in_dim, stem_dim, widths, [1] * len(depths), drop_p)
 
         feat_time_blocks = []
         for i in range(len(widths)):
@@ -51,22 +51,22 @@ class Decoder(nn.Module):
         self.stem = nn.Conv2d(3, last_dim, 2, stride=2, bias=False)
         self.last_up = Stage(last_dim, last_dim, 1, mode="up")
         self.mlp = nn.Sequential(
-            nn.Conv2d(last_dim, last_dim, 1, bias=False),
+            nn.Conv2d(last_dim, last_dim, 3, padding=1, bias=False),
             nn.GroupNorm(1, last_dim),
             nn.SiLU(),
-            nn.Conv2d(last_dim, last_dim + 3 + 2, 1),
+            nn.Conv2d(last_dim, last_dim + 3 + 2, 3, padding=1),
         )
         self.from_rgb = nn.Sequential(
-            nn.Conv2d(out_dim, last_dim, 1, bias=False),
+            nn.Conv2d(out_dim, last_dim, 3, padding=1, bias=False),
             nn.GroupNorm(1, last_dim),
             nn.SiLU(),
-            nn.Conv2d(last_dim, last_dim, 1),
+            nn.Conv2d(last_dim, last_dim, 3, padding=1),
         )
         self.to_rgb = nn.Sequential(
-            nn.Conv2d(last_dim, last_dim, 1, bias=False),
+            nn.Conv2d(last_dim, last_dim, 3, padding=1, bias=False),
             nn.GroupNorm(1, last_dim),
             nn.SiLU(),
-            nn.Conv2d(last_dim, out_dim, 1),
+            nn.Conv2d(last_dim, out_dim, 3, padding=1),
         )
 
     def resize_like(self, x, ref):

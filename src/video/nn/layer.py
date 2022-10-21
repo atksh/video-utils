@@ -22,7 +22,7 @@ class NonLinear(nn.Module):
         return F.silu(x)
 
 
-class ReversibleSequential(nn.Module):
+class _ReversibleSequential(nn.Module):
     def __init__(self, layers, split_dim):
         super().__init__()
         self.split_dim = split_dim
@@ -36,6 +36,13 @@ class ReversibleSequential(nn.Module):
         s = self.sigmoid(self.s)
         x = s * x1 + (1 - s) * x2
         return x
+
+
+def ReversibleSequential(layers, split_dim):
+    if len(layers) <= 4:
+        return nn.Sequential(*layers)
+    else:
+        return _ReversibleSequential(layers, split_dim)
 
 
 class VideoToImage(nn.Module):
@@ -119,7 +126,7 @@ class Block(nn.Module):
     def __init__(
         self,
         dim: int,
-        layer_scaler_init_value=1e-6,
+        layer_scaler_init_value=1.0,
         drop_p=0.0,
     ):
         super().__init__()

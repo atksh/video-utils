@@ -3,16 +3,16 @@ skip_rate = 1
 max_len = 32
 
 num_workers = 8
-total_batch_size = 32
-train_batch_size = 16
+total_batch_size = 4
+train_batch_size = 4
 predict_batch_size = 4
 fps = 30
 n_steps = 1
 
 
 in_dim = 3
-stem_dim = 16
-widths = [16, 32, 64, 96, 128]
-depths = [4, 12, 12, 8, 4]
-heads = [1, 1, 2, 3, 4]
+stem_dim = 32
+widths = [32, 64, 96, 128, 160]
+depths = [3, 3, 3, 3, 3]
+heads = [1, 2, 3, 4, 5]
 drop_p = 0.0
