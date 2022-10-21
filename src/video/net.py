@@ -115,8 +115,6 @@ class DataModule(pl.LightningDataModule):
 class Model(pl.LightningModule):
     def __init__(
         self,
-        window_sizes,
-        block_sizes,
         backbone_feat_dims,
         front_feat_dims,
         enc_num_heads,
@@ -128,7 +126,10 @@ class Model(pl.LightningModule):
     ):
         super().__init__()
         self.backbone = Backbone(
-            3, last_dim, backbone_feat_dims, [2, 2, 6, 2], window_sizes, block_sizes
+            3,
+            last_dim,
+            backbone_feat_dims,
+            [2, 2, 6, 2],
         )
         self.encoder = Encoder(
             backbone_feat_dims, front_feat_dims, enc_num_heads, enc_num_layers

@@ -141,7 +141,7 @@ class Block(nn.Module):
         drop_p=0.1,
     ):
         super().__init__()
-        self.conv = nn.Conv2d(
+        conv = nn.Conv2d(
             dim,
             dim,
             groups=dim,
@@ -149,24 +149,48 @@ class Block(nn.Module):
             padding=3,
             bias=False,
         )
-        self.ln = LayerNorm2D(dim)
-        self.mlp = nn.Sequential(
+        self.layer = nn.Sequential(
+            conv,
+            LayerNorm2D(dim),
             nn.Conv2d(dim, dim * 4, 1),
             nn.SiLU(),
             SELayer(dim * 4),
             nn.Conv2d(dim * 4, dim, 1, bias=False),
+            LayerScaler(layer_scaler_init_value, dim),
+            StochasticDepth(drop_p, mode="batch"),
         )
-        self.layer_scaler = LayerScaler(layer_scaler_init_value, dim)
-        self.drop_path = StochasticDepth(drop_p, mode="batch")
 
     def forward(self, x):
-        resid = x
-        x = self.conv(x)
+        x = self.layer(x)
+        return x
+
+
+class Stage(nn.Module):
+    def __init__(
+        self,
+        in_dim: int,
+        out_dim: int,
+        depth: int,
+        drop_p: float,
+        mode="down",
+    ):
+        super().__init__()
+        assert mode in ["down", "up"]
+        self.ln = LayerNorm2D(in_dim)
+        if mode == "down":
+            self.up_or_down = nn.Conv2d(in_dim, out_dim, 2, stride=2)
+        else:
+            self.up_or_down = Upsample(scale=2)
+
+        self.blocks = ReversibleSequential(
+            [Block(out_dim, drop_p=drop_p) for _ in range(depth)], split_dim=1
+        )
+
+    def forward(self, x):
         x = self.ln(x)
-        x = self.mlp(x)
-        x = self.layer_scaler(x)
-        x = self.drop_path(x)
-        x += resid
+        x = self.up_or_down(x)
+        x = self.down(x)
+        x = self.blocks(x)
         return x
 
 
