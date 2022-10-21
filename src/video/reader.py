@@ -2,6 +2,7 @@ import multiprocessing as mp
 import os
 import shutil
 import tempfile
+from typing import List
 
 import av
 import ffmpeg
