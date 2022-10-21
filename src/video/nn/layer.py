@@ -225,24 +225,6 @@ class SimpleLayer2D(nn.Module):
         return x
 
 
-class LRASPP(nn.Module):
-    def __init__(self, in_channels, out_channels):
-        super().__init__()
-        self.aspp1 = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, 1, bias=False),
-            LayerNorm2D(out_channels),
-            NonLinear(),
-        )
-        self.aspp2 = nn.Sequential(
-            nn.AdaptiveAvgPool2d(1),
-            nn.Conv2d(in_channels, out_channels, 1),
-            Sigmoid(),
-        )
-
-    def forward(self, x):
-        return self.aspp1(x) * self.aspp2(x)
-
-
 class FFN(nn.Module):
     def __init__(self, dim, s=2):
         super().__init__()
