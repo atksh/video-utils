@@ -197,7 +197,6 @@ class Stage(nn.Module):
     def forward(self, x):
         x = self.ln(x)
         x = self.up_or_down(x)
-        x = self.down(x)
         x = self.blocks(x)
         return x
 
