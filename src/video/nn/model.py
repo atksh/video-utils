@@ -102,7 +102,7 @@ class Decoder(nn.Module):
         ref = F.grid_sample(last_video, cord, mode="bilinear", align_corners=True)
 
         s = torch.stack(s.softmax(dim=1).chunk(3, dim=1), dim=0)
-        x = torch.stack([x, ref, last_video], dim=0)
+        x = torch.stack([x.sigmoid(), ref, last_video], dim=0)
         x = (x * s).sum(dim=0)
         x = self.soft_clip(x, 0, 1)
         return x.unsqueeze(1)
