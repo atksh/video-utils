@@ -82,4 +82,4 @@ class Decoder(nn.Module):
         # now x is (B, C, H // 4, W // 4)
         x = self.fc(x)
         x = self.resize_like(x, last_video)
-        return x
+        return x.unsqueeze(1)
