@@ -2,7 +2,6 @@ import argparse
 import os
 import shutil
 import sys
-from turtle import back
 
 import numpy as np
 import pytorch_lightning as pl
@@ -36,6 +35,8 @@ if __name__ == "__main__":
     model = Model.load_from_checkpoint(
         ckpt_path,
         map_location="cpu",
+        window_sizes=window_sizes,
+        block_sizes=block_sizes,
         backbone_feat_dims=backbone_feat_dims,
         front_feat_dims=front_feat_dims,
         enc_num_heads=enc_num_heads,
