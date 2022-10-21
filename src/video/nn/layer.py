@@ -171,7 +171,7 @@ class Stage(nn.Module):
         in_dim: int,
         out_dim: int,
         depth: int,
-        drop_p: float,
+        drop_p: float = 0.0,
         mode="down",
     ):
         super().__init__()
@@ -325,23 +325,6 @@ class UpsampleWithRefrence(nn.Module):
         ref_xy = torch.stack([ref_y, ref_x], dim=-1) * 2 - 1
         out = F.grid_sample(source, ref_xy, mode=self.mode, align_corners=True)
         return out
-
-
-class ImageReduction(nn.Module):
-    def __init__(self, in_dim, out_dim, n_layers):
-        super().__init__()
-        self.skip = nn.Conv2d(in_dim, out_dim, kernel_size=1, bias=False)
-        self.lraspp = LRASPP(in_dim, out_dim)
-        layers = [Block(out_dim) for _ in range(n_layers)]
-        self.layers = ReversibleSequential(layers, split_dim=1)
-        self.ln = LayerNorm2D(out_dim)
-
-    def forward(self, x):
-        resid = self.skip(x)
-        x = self.lraspp(x)
-        x = self.layers(x)
-        x = self.ln(x + resid)
-        return x
 
 
 # 3D layers
@@ -553,10 +536,6 @@ class PreNormTimeConv(nn.Module):
     def forward(self, x):
         x = self.ln(x)
         return self.f(x)
-
-
-def ImageReduction3D(in_dim, out_dim, n_layers):
-    return SimpleLayer2D(ImageReduction(in_dim, out_dim, n_layers))
 
 
 class VideoBlock(nn.Module):

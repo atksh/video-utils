@@ -3,11 +3,10 @@ from torch import nn
 
 from .layer import (
     DualScaleUpsample,
-    ImageReduction,
-    ImageReduction3D,
     ImageToVideo,
     Layer2D,
     Sigmoid,
+    Stage,
     UpsampleWithRefrence,
     VideoBlock,
     VideoToImage,
@@ -53,7 +52,7 @@ class Decoder(nn.Module):
             cat_dim = in_dim + 2 * additional_dim
             post_blocks.append(
                 nn.Sequential(
-                    ImageReduction3D(cat_dim, out_dim, num_layers[i]),
+                    Layer2D(Stage(cat_dim, out_dim, num_layers[i], mode="same")),
                     VideoBlock(out_dim, heads, num_layers[i]),
                 )
             )
@@ -62,11 +61,11 @@ class Decoder(nn.Module):
         self.post_blocks = nn.ModuleList(post_blocks)
 
         self.last_up_lr = UpsampleWithRefrence(last_dim, 3)
-        self.refine_lr = ImageReduction(last_dim + 6, last_dim, 3)
+        self.refine_lr = Stage(last_dim + 6, last_dim, 3, mode="same")
         self.fc_lr = nn.Conv2d(last_dim, 3 * self.n_steps, 1)
 
         self.last_up_hr = UpsampleWithRefrence(last_dim, 1)
-        self.refine_hr = ImageReduction(last_dim + 2, last_dim, 3)
+        self.refine_hr = Stage(last_dim + 2, last_dim, 3, mode="same")
         self.fc_hr = nn.Conv2d(last_dim, 1 * self.n_steps, 1)
 
         self.to_image = VideoToImage()
