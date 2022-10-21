@@ -1,5 +1,5 @@
 import torch
-from pytorch_lightning.callbacks.base import Callback
+from pytorch_lightning.callbacks.callback import Callback
 
 
 class SetPrecisionCallback(Callback):
