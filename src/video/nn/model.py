@@ -47,15 +47,14 @@ class Decoder(nn.Module):
             out_dim = last_dim if i == 0 else feat_dims[i - 1]
             heads = num_heads[i]
 
-            if i != 3:
-                blocks.append(
-                    nn.Sequential(
-                        Layer2D(Stage(prev_dim, out_dim, num_layers[i], mode="up")),
-                        VideoBlock(out_dim, heads, num_layers[i]),
-                    )
+            blocks.append(
+                nn.Sequential(
+                    Layer2D(Stage(prev_dim, out_dim, num_layers[i], mode="up")),
+                    VideoBlock(out_dim, heads, num_layers[i])
+                    if i != 3
+                    else nn.Identity(),
                 )
-            else:
-                blocks.append(nn.Identity())
+            )
             merges.append(Layer2D(UpsampleWithRefrence(out_dim, additional_dim)))
             prev_dim = out_dim + 2 * additional_dim
 
