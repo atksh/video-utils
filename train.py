@@ -30,15 +30,12 @@ if __name__ == "__main__":
         skip_rate=skip_rate,
     )
     model = Model(
-        backbone_depths,
-        backbone_feat_dims,
-        front_feat_dims,
-        enc_num_heads,
-        enc_num_layers,
-        dec_num_heads,
-        dec_num_layers,
-        last_dim,
-        n_steps,
+        in_dim=in_dim,
+        stem_dim=stem_dim,
+        widths=widths,
+        depths=depths,
+        heads=heads,
+        drop_p=drop_p,
     )
 
     precision_callback = SetPrecisionCallback()
