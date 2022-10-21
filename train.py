@@ -14,6 +14,7 @@ if __name__ == "__main__":
     cache_dir = "cache"
     path = list(glob.glob("data/*.mp4"))
     # path = ["video2.mp4"]
+    path = path[:1]
     print(path)
 
     max_epochs = 1000
