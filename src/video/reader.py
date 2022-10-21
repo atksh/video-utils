@@ -169,9 +169,9 @@ class Video:
                             self._split, start_frame, end_frame, output_path
                         )
                     )
-        out = []
-        for future in tqdm(futures):
-            out.append(future.result())
+                out = []
+                for future in tqdm(futures):
+                    out.append(future.result())
         return out
 
     def get_all_frames(self):
