@@ -7,9 +7,8 @@ from adabelief_pytorch import AdaBelief
 from tqdm import tqdm
 
 from .dataset import VideoDataset
-from .nn.backbone import Backbone
 from .nn.loss import MSSSIML1Loss
-from .nn.model import Decoder, Encoder, MergedModel
+from .nn.model import Decoder, Encoder
 
 
 class DataModule(pl.LightningDataModule):
@@ -115,45 +114,32 @@ class DataModule(pl.LightningDataModule):
 class Model(pl.LightningModule):
     def __init__(
         self,
-        backbone_depths,
-        backbone_feat_dims,
-        front_feat_dims,
-        enc_num_heads,
-        enc_num_layers,
-        dec_num_heads,
-        dec_num_layers,
-        last_dim,
-        n_steps,
+        in_dim,
+        stem_dim,
+        widths,
+        depths,
+        heads,
+        drop_p,
     ):
         super().__init__()
-        self.backbone = Backbone(
-            3,
-            last_dim,
-            backbone_feat_dims,
-            backbone_depths,
-        )
-        self.encoder = Encoder(
-            backbone_feat_dims, front_feat_dims, enc_num_heads, enc_num_layers
-        )
-        self.decoder = Decoder(
-            front_feat_dims, dec_num_heads, dec_num_layers, last_dim, n_steps
-        )
+        self.encoder = Encoder(in_dim, stem_dim, widths, depths, heads, drop_p)
+        self.decoder = Decoder(in_dim, stem_dim, widths, depths, heads, drop_p)
         self.loss = MSSSIML1Loss()
-        self.model = MergedModel(self.backbone, self.encoder, self.decoder)
 
-    def forward(self, x):
-        return self.model(x)
+    def forward(self, video):
+        feats = self.encoder(video)
+        return self.decoder(video, feats)
 
     def training_step(self, batch, batch_idx):
         x, y = batch
-        pred = self.model(x)
+        pred = self.forward(x)
         loss = self.loss(pred, y)
         self.log("train_loss", loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
-        pred = self.model(x)
+        pred = self.forward(x)
         loss = self.loss(pred, y)
         self.log("val_loss", loss)
         return loss
@@ -161,7 +147,7 @@ class Model(pl.LightningModule):
     def predict_step(self, batch, batch_idx):
         video, y = batch
         with torch.inference_mode():
-            preds = self.model(video)
+            preds = self.forward(video)
             preds = (preds * 255).to(torch.uint8)
             y = (y * 255).to(torch.uint8)
         return preds, y
@@ -172,6 +158,5 @@ class Model(pl.LightningModule):
             lr=1e-4,
             weight_decay=1e-4,
             eps=1e-12,
-            betas=(0.9, 0.98),
             print_change_log=False,
         )

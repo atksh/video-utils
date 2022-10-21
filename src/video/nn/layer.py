@@ -189,8 +189,8 @@ class Stage(nn.Module):
         elif mode == "up":
             self.ln = LayerNorm2D(in_dim)
             self.up_or_down = nn.Sequential(
-                nn.Conv2d(in_dim, out_dim * 4, 1, bias=False),
-                nn.PixelShuffle(2),
+                nn.Conv2d(in_dim, out_dim, 1, bias=False),
+                nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True),
             )
         elif mode == "same":
             self.ln = nn.Identity()
