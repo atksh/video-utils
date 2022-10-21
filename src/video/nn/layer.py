@@ -4,8 +4,6 @@ from torch import nn
 from torch.nn import functional as F
 from torchvision.ops import StochasticDepth
 
-from .dct import DCTFreqConv
-
 NEG_INF = -5000.0
 
 
@@ -84,9 +82,7 @@ class DualScaleUpsample(nn.Module):
         self.conv = nn.Conv2d(1, 3, 1, bias=False)
         self.mlp = nn.Sequential(
             nn.Conv2d(3, 16, 1),
-            DCTFreqConv(16, 16, 8, 8, 1),
             NonLinear(),
-            DCTFreqConv(16, 16, 8, 8, 1),
             nn.Conv2d(16, 3, 1),
         )
 
