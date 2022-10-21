@@ -54,7 +54,6 @@ if __name__ == "__main__":
         benchmark=True,
         deterministic=False,
         check_val_every_n_epoch=1,
-        d
         gradient_clip_val=1.0,
         gradient_clip_algorithm="norm",
         limit_train_batches=1.0 / skip_rate,
