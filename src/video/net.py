@@ -125,7 +125,7 @@ class Model(pl.LightningModule):
         n_steps,
     ):
         super().__init__()
-        self.backbone = Backbone()
+        self.backbone = Backbone(3, last_dim, backbone_feat_dims, [2, 2, 6, 2])
         self.encoder = Encoder(
             backbone_feat_dims, front_feat_dims, enc_num_heads, enc_num_layers
         )
