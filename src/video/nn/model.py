@@ -47,12 +47,15 @@ class Decoder(nn.Module):
             out_dim = last_dim if i == 0 else feat_dims[i - 1]
             heads = num_heads[i]
 
-            blocks.append(
-                nn.Sequential(
-                    Layer2D(Stage(prev_dim, out_dim, num_layers[i], mode="up")),
-                    VideoBlock(out_dim, heads, num_layers[i]),
+            if i != 3:
+                blocks.append(
+                    nn.Sequential(
+                        Layer2D(Stage(prev_dim, out_dim, num_layers[i], mode="up")),
+                        VideoBlock(out_dim, heads, num_layers[i]),
+                    )
                 )
-            )
+            else:
+                blocks.append(nn.Identity())
             merges.append(Layer2D(UpsampleWithRefrence(out_dim, additional_dim)))
             prev_dim = out_dim + 2 * additional_dim
 
@@ -65,7 +68,7 @@ class Decoder(nn.Module):
 
         self.refine_hr = Stage(last_dim + 6, last_dim, 3, mode="up")
         self.last_up_hr = UpsampleWithRefrence(last_dim, 1)
-        self.fc_hr = nn.Conv2d(last_dim + 1, 1 * self.n_steps, 1)
+        self.fc_hr = nn.Conv2d(last_dim + 2, 1 * self.n_steps, 1)
 
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
