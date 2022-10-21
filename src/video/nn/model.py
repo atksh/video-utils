@@ -91,6 +91,7 @@ class Decoder(nn.Module):
         # now x is (B, C, H // 2, W // 2)
         x = self.mlp(x)
         x = self.resize_like(x, last_video)
+        # now x is (B, C, H, W)
         x, s = x.chunk(2, dim=1)
         x = last_video * s + x * (1 - s)
         return x.unsqueeze(1)
