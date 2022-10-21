@@ -51,10 +51,22 @@ class Decoder(nn.Module):
         self.stem = nn.Conv2d(3, last_dim, 2, stride=2, bias=False)
         self.last_up = Stage(last_dim, last_dim, 1, mode="up")
         self.mlp = nn.Sequential(
-            nn.Conv2d(last_dim, last_dim, 3, padding=1),
+            nn.Conv2d(last_dim, last_dim, 1, bias=False),
             nn.GroupNorm(1, last_dim),
             nn.SiLU(),
-            nn.Conv2d(last_dim, out_dim + 3 + 2, 3, padding=1),
+            nn.Conv2d(last_dim, last_dim + 3 + 2, 1),
+        )
+        self.from_rgb = nn.Sequential(
+            nn.Conv2d(out_dim, last_dim, 1, bias=False),
+            nn.GroupNorm(1, last_dim),
+            nn.SiLU(),
+            nn.Conv2d(last_dim, last_dim, 1),
+        )
+        self.to_rgb = nn.Sequential(
+            nn.Conv2d(last_dim, last_dim, 1, bias=False),
+            nn.GroupNorm(1, last_dim),
+            nn.SiLU(),
+            nn.Conv2d(last_dim, out_dim, 1),
         )
 
     def resize_like(self, x, ref):
@@ -74,6 +86,13 @@ class Decoder(nn.Module):
     def soft_clip(self, x, lb, ub):
         _x = torch.clamp(x, lb, ub)
         return _x.detach() + x - x.detach()
+
+    def get_ref(self, last_video, cord):
+        cord_x = cord[:, 0].softmax(dim=-1).cumsum(dim=-1)
+        cord_y = cord[:, 1].softmax(dim=-2).cumsum(dim=-2)
+        cord = torch.stack([cord_x, cord_y], dim=-1) * 2 - 1
+        ref = F.grid_sample(last_video, cord, mode="bilinear", align_corners=True)
+        return ref
 
     def forward(self, video, feats):
         feats = [self.duplicate_last(feat) for feat in feats]
@@ -95,14 +114,13 @@ class Decoder(nn.Module):
         x = self.mlp(x)
         x = self.resize_like(x, last_video)
         # now x is (B, C, H, W)
-        x, s, cord = x.chunk(3, dim=1)
-        cord_x = cord[:, 0].softmax(dim=-1).cumsum(dim=-1)
-        cord_y = cord[:, 1].softmax(dim=-2).cumsum(dim=-2)
-        cord = torch.stack([cord_x, cord_y], dim=-1) * 2 - 1
-        ref = F.grid_sample(last_video, cord, mode="bilinear", align_corners=True)
-
-        s = torch.stack(s.softmax(dim=1).chunk(3, dim=1), dim=0)
-        x = torch.stack([x.sigmoid(), ref, last_video], dim=0)
-        x = (x * s).sum(dim=0)
-        x = self.soft_clip(x, 0, 1)
-        return x.unsqueeze(1)
+        x, cord = x[:, :-2], x[:, -2:]
+        x, s = x.chunk(2, dim=1)
+        last_video_z = self.from_rgb(last_video)
+        ref = self.get_ref(last_video_z, cord)
+        x = torch.stack([x, ref, last_video_z], dim=-1)  # (B, C, H, W, 3)
+        s = torch.stack(s.sigmoid().chunk(3, dim=1), dim=-1)  # (B, 1, H, W, 3)
+        x = (x * s).sum(dim=-1)
+        x = self.to_rgb(x) + last_video
+        x = self.soft_clip(x, 0, 1).unsqueeze(1)
+        return x
