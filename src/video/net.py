@@ -63,7 +63,8 @@ class DataModule(pl.LightningDataModule):
         with open(path, "rb") as f:
             m.update(f.read())
         md5 = m.hexdigest()
-        return os.path.join(self.save_dir, md5 + ".bin")
+        res = self.resolution.replace(":", "x")
+        return os.path.join(self.save_dir, md5 + f"_{res}.bin")
 
     def prepare_data(self):
         datasets = []
