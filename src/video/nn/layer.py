@@ -219,56 +219,6 @@ class SimpleLayer2D(nn.Module):
         return x
 
 
-class UpsampleWithRefrence(nn.Module):
-    def __init__(self, low_dim, high_dim, mode="bilinear"):
-        super().__init__()
-        self.mode = mode
-        self.low_dim = low_dim
-        self.high_dim = high_dim
-        self.to_ref = nn.Conv2d(
-            low_dim, 2 * high_dim, kernel_size=3, padding=1, bias=False
-        )
-
-    def interpolate(self, x, **kwargs):
-        x = F.interpolate(x, mode="nearest", **kwargs)
-        return x
-
-    def merge(self, upsampled, highres):
-        h1, w1 = highres.shape[-2:]
-        h2, w2 = upsampled.shape[-2:]
-        if h1 != h2 or w1 != w2:
-            size = (h1, w1)
-            upsampled = self.interpolate(upsampled, size=size)
-        out = torch.cat([upsampled, highres], dim=1)
-        return out
-
-    def forward(self, upsampled, highres):
-        size = highres.shape[-2:]
-        high_dim = highres.shape[-3]
-
-        b = upsampled.shape[0]
-        ref = self.to_ref(upsampled)
-        h, w = ref.shape[-2:]
-        if h != size[0] or w != size[1]:
-            ref = self.interpolate(ref, size=size)
-        ref = ref.view(b * high_dim, 2, *size)
-        highres = highres.view(b * high_dim, 1, *size)
-
-        out = self.transform(ref, highres)
-        out = out.view(b, high_dim, *size)
-        highres = highres.view(b, high_dim, *size)
-        return self.merge(upsampled, torch.cat([out, highres], dim=1))
-
-    def transform(self, ref_xy, source):
-        # ref_xy: (batch_size, 2, height, width)
-        # source: (batch_size, dim, height, width)
-        ref_x = ref_xy[:, 0].softmax(dim=-1).cumsum(dim=-1)
-        ref_y = ref_xy[:, 1].softmax(dim=-2).cumsum(dim=-2)
-        ref_xy = torch.stack([ref_y, ref_x], dim=-1) * 2 - 1
-        out = F.grid_sample(source, ref_xy, mode=self.mode, align_corners=True)
-        return out
-
-
 # 3D layers
 
 
