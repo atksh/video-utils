@@ -157,8 +157,8 @@ class Block(nn.Module):
             dim,
             dim,
             groups=dim,
-            kernel_size=7,
-            padding=3,
+            kernel_size=3,
+            padding=1,
             bias=False,
         )
         self.layer = nn.Sequential(
