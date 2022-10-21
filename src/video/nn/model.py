@@ -4,6 +4,7 @@ from torch import nn
 from .ckpt import ckpt_forward
 from .layer import (
     DualScaleUpsample,
+    ImageReduction,
     ImageReduction3D,
     ImageToVideo,
     Layer2D,
