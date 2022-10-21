@@ -53,11 +53,17 @@ class ImageToVideo(nn.Module):
 class DualScaleDownsample(nn.Module):
     def __init__(self):
         super().__init__()
+        self.mlp = nn.Sequential(
+            nn.Conv2d(3, 16, 1),
+            NonLinear(),
+            nn.Conv2d(16, 3, 1),
+        )
         self.conv_hr = nn.Conv2d(3, 1, 1, bias=False)
         self.conv_lr = nn.Conv2d(3, 3, 1, bias=False)
         self.down = nn.AvgPool2d(2, 2)
 
     def forward(self, x):
+        x = self.mlp(x)
         hr_x = self.conv_hr(x)
         lr_x = self.down(self.conv_lr(x))
         return hr_x, lr_x
