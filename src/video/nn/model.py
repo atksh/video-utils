@@ -90,17 +90,15 @@ class Decoder(nn.Module):
         feats = [avg_video] + feats
         x = feats[-1]
         for merge, block, feat in zip(self.merges, self.blocks, reversed(feats[:-1])):
-            print(x.shape)
             x = block(x)
-            print(x.shape)
             x = merge(x, feat)
 
-        x = self.refine_lr(x)
-        x = self.last_up_lr(x[:, -1], lr_video[:, -1].contiguous())
+        x = self.refine_lr(x[:, -1])
+        x = self.last_up_lr(x, lr_video[:, -1].contiguous())
         lr_x = self.fc_lr(x)
 
         x = self.refine_hr(x)
-        x = self.last_up_hr(x, hr_video[:, -1])
+        x = self.last_up_hr(x, hr_video[:, -1].contiguous())
         hr_x = self.fc_hr(x)
 
         lr_x = lr_x.reshape(b * self.n_steps, 3, h // 2, w // 2)
