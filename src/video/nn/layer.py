@@ -50,18 +50,6 @@ class ImageToVideo(nn.Module):
         return x.view(batch_size, -1, c, h, w)
 
 
-class Upsample(nn.Module):
-    def __init__(self, scale=2):
-        super().__init__()
-        self.scale = scale
-
-    def forward(self, x):
-        x = F.interpolate(
-            x, scale_factor=self.scale, mode="bilinear", align_corners=True
-        )
-        return x
-
-
 class DualScaleDownsample(nn.Module):
     def __init__(self):
         super().__init__()
@@ -78,7 +66,7 @@ class DualScaleDownsample(nn.Module):
 class DualScaleUpsample(nn.Module):
     def __init__(self):
         super().__init__()
-        self.up = Upsample(scale=2)
+        self.up = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
         self.conv = nn.Conv2d(1, 3, 1, bias=False)
         self.mlp = nn.Sequential(
             nn.Conv2d(3, 16, 1),
@@ -177,7 +165,10 @@ class Stage(nn.Module):
         if mode == "down":
             self.up_or_down = nn.Conv2d(in_dim, out_dim, 2, stride=2, bias=False)
         elif mode == "up":
-            self.up_or_down = Upsample(scale=2)
+            self.up_or_down = nn.Sequential(
+                nn.Conv2d(in_dim, out_dim * 4, 1, bias=False),
+                nn.PixelShuffle(2),
+            )
         elif mode == "same":
             if in_dim == out_dim:
                 self.up_or_down = nn.Identity()
@@ -274,7 +265,7 @@ class FFN(nn.Module):
 
 
 class UpsampleWithRefrence(nn.Module):
-    def __init__(self, low_dim, high_dim, scale=2, mode="bilinear"):
+    def __init__(self, low_dim, high_dim, mode="bilinear"):
         super().__init__()
         self.mode = mode
         self.low_dim = low_dim
@@ -282,14 +273,12 @@ class UpsampleWithRefrence(nn.Module):
         self.to_ref = nn.Conv2d(
             low_dim, 2 * high_dim, kernel_size=3, padding=1, bias=False
         )
-        self.up = Upsample(scale)
 
     def interpolate(self, x, **kwargs):
         x = F.interpolate(x, mode="nearest", **kwargs)
         return x
 
-    def merge(self, lowres, highres):
-        upsampled = self.up(lowres)
+    def merge(self, upsampled, highres):
         h1, w1 = highres.shape[-2:]
         h2, w2 = upsampled.shape[-2:]
         if h1 != h2 or w1 != w2:
@@ -298,12 +287,12 @@ class UpsampleWithRefrence(nn.Module):
         out = torch.cat([upsampled, highres], dim=1)
         return out
 
-    def forward(self, lowres, highres):
+    def forward(self, upsampled, highres):
         size = highres.shape[-2:]
         high_dim = highres.shape[-3]
 
-        b = lowres.shape[0]
-        ref = self.up(self.to_ref(lowres))
+        b = upsampled.shape[0]
+        ref = self.to_ref(upsampled)
         h, w = ref.shape[-2:]
         if h != size[0] or w != size[1]:
             ref = self.interpolate(ref, size=size)
@@ -313,7 +302,7 @@ class UpsampleWithRefrence(nn.Module):
         out = self.transform(ref, highres)
         out = out.view(b, high_dim, *size)
         highres = highres.view(b, high_dim, *size)
-        return self.merge(lowres, torch.cat([out, highres], dim=1))
+        return self.merge(upsampled, torch.cat([out, highres], dim=1))
 
     def transform(self, ref_xy, source):
         # ref_xy: (batch_size, 2, height, width)

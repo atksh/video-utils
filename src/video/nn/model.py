@@ -39,34 +39,33 @@ class Decoder(nn.Module):
         super().__init__()
         self.n_steps = n_steps
 
-        ups = []
-        post_blocks = []
+        merges = []
+        blocks = []
+        prev_dim = feat_dims[-1]
         for i in reversed(range(4)):
-            in_dim = feat_dims[i]
             additional_dim = feat_dims[i - 1] if i > 0 else 3
             out_dim = last_dim if i == 0 else feat_dims[i - 1]
             heads = num_heads[i]
 
-            ups.append(Layer2D(UpsampleWithRefrence(in_dim, additional_dim)))
-
-            cat_dim = in_dim + 2 * additional_dim
-            post_blocks.append(
+            blocks.append(
                 nn.Sequential(
-                    Layer2D(Stage(cat_dim, out_dim, num_layers[i], mode="same")),
+                    Layer2D(Stage(prev_dim, out_dim, num_layers[i], mode="up")),
                     VideoBlock(out_dim, heads, num_layers[i]),
                 )
             )
+            merges.append(Layer2D(UpsampleWithRefrence(out_dim, additional_dim)))
+            prev_dim = out_dim + 2 * additional_dim
 
-        self.ups = nn.ModuleList(ups)
-        self.post_blocks = nn.ModuleList(post_blocks)
+        self.merges = nn.ModuleList(merges)
+        self.blocks = nn.ModuleList(blocks)
 
+        self.refine_lr = Stage(prev_dim, last_dim, 3, mode="up")
         self.last_up_lr = UpsampleWithRefrence(last_dim, 3)
-        self.refine_lr = Stage(last_dim + 6, last_dim, 3, mode="same")
-        self.fc_lr = nn.Conv2d(last_dim, 3 * self.n_steps, 1)
+        self.fc_lr = nn.Conv2d(last_dim + 6, 3 * self.n_steps, 1)
 
+        self.refine_hr = Stage(last_dim, last_dim, 3, mode="up")
         self.last_up_hr = UpsampleWithRefrence(last_dim, 1)
-        self.refine_hr = Stage(last_dim + 2, last_dim, 3, mode="same")
-        self.fc_hr = nn.Conv2d(last_dim, 1 * self.n_steps, 1)
+        self.fc_hr = nn.Conv2d(last_dim + 1, 1 * self.n_steps, 1)
 
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
@@ -90,15 +89,18 @@ class Decoder(nn.Module):
         avg_video = self.avg_pool(lr_video)
         feats = [avg_video] + feats
         x = feats[-1]
-        for up, post, feat in zip(self.ups, self.post_blocks, reversed(feats[:-1])):
-            x = up(x, feat)
-            x = post(x)
+        for merge, block, feat in zip(self.merges, self.blocks, reversed(feats[:-1])):
+            print(x.shape)
+            x = block(x)
+            print(x.shape)
+            x = merge(x, feat)
 
-        x = self.last_up_lr(x[:, -1], lr_video[:, -1].contiguous())
         x = self.refine_lr(x)
+        x = self.last_up_lr(x[:, -1], lr_video[:, -1].contiguous())
         lr_x = self.fc_lr(x)
-        x = self.last_up_hr(x, hr_video[:, -1])
+
         x = self.refine_hr(x)
+        x = self.last_up_hr(x, hr_video[:, -1])
         hr_x = self.fc_hr(x)
 
         lr_x = lr_x.reshape(b * self.n_steps, 3, h // 2, w // 2)
