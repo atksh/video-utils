@@ -1,11 +1,9 @@
 import torch
 from torch import nn
-from torch.nn import functional as F
 
 from .ckpt import ckpt_forward
 from .layer import (
     DualScaleUpsample,
-    ImageReduction,
     ImageReduction3D,
     ImageToVideo,
     Layer2D,
@@ -23,19 +21,15 @@ class Encoder(nn.Module):
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
 
-        feat_blocks = []
         feat_time_blocks = []
         for i in range(4):
-            in_dim = backbone_feat_dims[i]
+            backbone_feat_dims[i]
             inner_dim = front_feat_dims[i]
             heads = num_heads[i]
-            feat_blocks.append(ImageReduction(in_dim, inner_dim, num_layers[1]))
             feat_time_blocks.append(VideoBlock(inner_dim, heads, num_layers[i]))
-        self.feat_blocks = nn.ModuleList(feat_blocks)
         self.feat_time_blocks = nn.ModuleList(feat_time_blocks)
 
     def forward(self, feats, bsz):
-        feats = [self.feat_blocks[i](feat) for i, feat in enumerate(feats)]
         feats = [self.to_video(feat, bsz) for feat in feats]
         feats = [self.feat_time_blocks[i](feat) for i, feat in enumerate(feats)]
         return feats
