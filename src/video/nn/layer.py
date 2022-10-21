@@ -50,31 +50,6 @@ class ImageToVideo(nn.Module):
         return x.view(batch_size, -1, c, h, w)
 
 
-class DualScaleDownsample(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.conv_hr = nn.Conv2d(3, 1, 1, bias=False)
-        self.conv_lr = nn.Conv2d(3, 3, 1, bias=False)
-        self.down = nn.AvgPool2d(2, 2)
-
-    def forward(self, x):
-        x = self.mlp(x)
-        hr_x = self.conv_hr(x)
-        lr_x = self.down(self.conv_lr(x))
-        return hr_x, lr_x
-
-
-class DualScaleUpsample(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.up = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
-        self.conv = nn.Conv2d(1, 3, 1, bias=False)
-
-    def forward(self, hr_x, lr_x):
-        x = self.conv(hr_x) + self.up(lr_x)
-        return x
-
-
 class LayerScaler(nn.Module):
     def __init__(self, s: float, dim: int):
         super().__init__()
@@ -144,7 +119,7 @@ class Block(nn.Module):
     def __init__(
         self,
         dim: int,
-        layer_scaler_init_value=1.0,
+        layer_scaler_init_value=1e-6,
         drop_p=0.0,
     ):
         super().__init__()
@@ -153,7 +128,7 @@ class Block(nn.Module):
             dim,
             groups=dim,
             kernel_size=5,
-            padding=3,
+            padding=2,
             bias=False,
         )
         self.layer = nn.Sequential(
