@@ -3,8 +3,6 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from .dct import DCTFreqConv
-
 NEG_INF = -5000.0
 
 
@@ -82,9 +80,11 @@ class DualScaleUpsample(nn.Module):
         self.up = Upsample(scale=2)
         self.conv = nn.Conv2d(1, 3, 1, bias=False)
         self.mlp = nn.Sequential(
-            DCTFreqConv(3, 12, 3, 8, 1),
+            nn.Conv2d(3, 16, 1),
+            # DCTFreqConv(16, 16, 8, 8, 1),
             NonLinear(),
-            DCTFreqConv(12, 3, 3, 8, 1),
+            # DCTFreqConv(16, 16, 8, 8, 1),
+            nn.Conv2d(16, 3, 1),
         )
 
     def forward(self, hr_x, lr_x):
@@ -252,20 +252,20 @@ class UpsampleWithRefrence(nn.Module):
 class MBConv(nn.Module):
     def __init__(self, dim, s=4):
         super().__init__()
+        self.conv = nn.Conv2d(
+            dim, dim, groups=dim, kernel_size=7, padding=3, bias=False
+        )
+        self.ln = LayerNorm2D(dim)
         self.p1 = nn.Conv2d(dim, dim * s, kernel_size=1, bias=False)
-        self.d1 = nn.Conv2d(dim * s, dim * s, kernel_size=3, padding=1, groups=dim * s)
+        self.act = NonLinear()
         self.se = SELayer(dim * s)
         self.p2 = nn.Conv2d(dim * s, dim, kernel_size=1, bias=False)
-        self.act = NonLinear()
-        self.ln1 = LayerNorm2D(dim)
-        self.ln2 = LayerNorm2D(dim * s)
 
     def forward(self, x):
-        x = self.ln1(x)
+        x = self.conv(x)
+        x = self.ln(x)
         x = self.p1(x)
-        x = self.d1(x)
         x = self.act(x)
-        x = self.ln2(x)
         x = self.se(x)
         x = self.p2(x)
         return x
