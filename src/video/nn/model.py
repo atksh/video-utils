@@ -55,8 +55,8 @@ class Decoder(nn.Module):
             nn.GroupNorm(1, last_dim),
             nn.SiLU(),
             nn.Conv2d(last_dim, out_dim * 2, 3, padding=1),
+            Sigmoid(),
         )
-        self.sigmoid = Sigmoid()
 
     def resize_like(self, x, ref):
         bsz = None
@@ -85,10 +85,12 @@ class Decoder(nn.Module):
             x = refine_block(x)
         x = x[:, -1].contiguous()
         # now x is (B, C, H // 4, W // 4)
-        x = self.last_up(x) + self.stem(last_video)
+        z = self.stem(last_video)
+        x = self.last_up(x)
+        x = self.resize_like(x, z) + z
+        # now x is (B, C, H // 2, W // 2)
         x = self.mlp(x)
-        x = self.sigmoid(x)
-        x = self.resize_like(x, video)
+        x = self.resize_like(x, last_video)
         x, s = x.chunk(2, dim=1)
-        x = video * s + x * (1 - s)
-        return x
+        x = last_video * s + x * (1 - s)
+        return x.unsqueeze(1)
