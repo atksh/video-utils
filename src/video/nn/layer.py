@@ -119,7 +119,7 @@ class SELayer(nn.Module):
         intermed_dim = max(dim // reduction, 2)
         self.fc = nn.Sequential(
             nn.Linear(dim, intermed_dim),
-            nn.SiLU(),
+            NonLinear(),
             nn.Linear(intermed_dim, dim),
             nn.Sigmoid(),
         )
@@ -151,7 +151,7 @@ class Block(nn.Module):
             conv,
             LayerNorm2D(dim),
             nn.Conv2d(dim, dim * 4, 1),
-            nn.SiLU(),
+            NonLinear(),
             SELayer(dim * 4),
             nn.Conv2d(dim * 4, dim, 1, bias=False),
             LayerScaler(layer_scaler_init_value, dim),
