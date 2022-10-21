@@ -13,8 +13,6 @@ class Backbone(nn.Module):
         stem_dim: int,
         widths: List[int],
         depths: List[int],
-        window_sizes: List[int],
-        block_sizes: List[int],
         drop_p: float = 0.25,
     ):
         super().__init__()
@@ -26,15 +24,11 @@ class Backbone(nn.Module):
         drop_probs = [x.item() for x in torch.linspace(0, drop_p, sum(depths))]
 
         stages = []
-        for (in_dim, out_dim), depth, drop_p, window_size, block_size in zip(
-            in_out_widths, depths, drop_probs, window_sizes, block_sizes
-        ):
+        for (in_dim, out_dim), depth, drop_p in zip(in_out_widths, depths, drop_probs):
             stages.append(
                 Stage(
                     in_dim,
                     out_dim,
-                    window_size=window_size,
-                    block_size=block_size,
                     depth=depth,
                     drop_p=drop_p,
                 )

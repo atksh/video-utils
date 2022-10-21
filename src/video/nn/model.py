@@ -1,7 +1,6 @@
 import torch
 from torch import nn
 
-from .ckpt import ckpt_forward
 from .layer import (
     DualScaleUpsample,
     ImageReduction,
@@ -124,7 +123,6 @@ class MergedModel:
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
 
-    @ckpt_forward
     def backbone_forward(self, x):
         hr_x, lr_x, feats = self.backbone(x)
         return hr_x, lr_x, feats
