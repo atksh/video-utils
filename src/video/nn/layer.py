@@ -138,7 +138,7 @@ class Block(nn.Module):
         self,
         dim: int,
         layer_scaler_init_value=1e-6,
-        drop_p=0.1,
+        drop_p=0.0,
     ):
         super().__init__()
         conv = nn.Conv2d(
@@ -175,12 +175,20 @@ class Stage(nn.Module):
         mode="down",
     ):
         super().__init__()
-        assert mode in ["down", "up"]
         self.ln = LayerNorm2D(in_dim)
         if mode == "down":
             self.up_or_down = nn.Conv2d(in_dim, out_dim, 2, stride=2)
-        else:
+        elif mode == "up":
             self.up_or_down = Upsample(scale=2)
+        elif mode == "same":
+            if in_dim == out_dim:
+                self.up_or_down = nn.Identity()
+            else:
+                self.up_or_down = nn.Conv2d(in_dim, out_dim, 1, bias=False)
+        else:
+            raise ValueError(
+                f"Unknown mode: {mode}. Must be one of 'down', 'up', 'same'."
+            )
 
         self.blocks = ReversibleSequential(
             [Block(out_dim, drop_p=drop_p) for _ in range(depth)], split_dim=1
@@ -320,34 +328,12 @@ class UpsampleWithRefrence(nn.Module):
         return out
 
 
-class MBConv(nn.Module):
-    def __init__(self, dim, s=4):
-        super().__init__()
-        self.conv = nn.Conv2d(
-            dim, dim, groups=dim, kernel_size=7, padding=3, bias=False
-        )
-        self.ln = LayerNorm2D(dim)
-        self.p1 = nn.Conv2d(dim, dim * s, kernel_size=1, bias=False)
-        self.act = NonLinear()
-        self.se = SELayer(dim * s)
-        self.p2 = nn.Conv2d(dim * s, dim, kernel_size=1, bias=False)
-
-    def forward(self, x):
-        x = self.conv(x)
-        x = self.ln(x)
-        x = self.p1(x)
-        x = self.act(x)
-        x = self.se(x)
-        x = self.p2(x)
-        return x
-
-
 class ImageReduction(nn.Module):
     def __init__(self, in_dim, out_dim, n_layers):
         super().__init__()
         self.skip = nn.Conv2d(in_dim, out_dim, kernel_size=1, bias=False)
         self.lraspp = LRASPP(in_dim, out_dim)
-        layers = [MBConv(out_dim) for _ in range(n_layers)]
+        layers = [Block(out_dim) for _ in range(n_layers)]
         self.layers = ReversibleSequential(layers, split_dim=1)
         self.ln = LayerNorm2D(out_dim)
 
@@ -570,10 +556,6 @@ class PreNormTimeConv(nn.Module):
         return self.f(x)
 
 
-def MBConv3D(dim, s=4):
-    return SimpleLayer2D(MBConv(dim, s))
-
-
 def ImageReduction3D(in_dim, out_dim, n_layers):
     return SimpleLayer2D(ImageReduction(in_dim, out_dim, n_layers))
 
@@ -586,7 +568,7 @@ class VideoBlock(nn.Module):
         for _ in range(n_layers):
             layers.extend(
                 [
-                    MBConv3D(dim),
+                    SimpleLayer2D(Block(dim)),
                     PreNormTimeConv(dim),
                     PreNormLastQueryFullVideoAttention(dim, heads),
                     PreNormFFN3D(dim),
