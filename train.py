@@ -39,7 +39,7 @@ if __name__ == "__main__":
     )
 
     precision_callback = SetPrecisionCallback()
-    checkpoint_callback = ModelCheckpoint(save_last=True, every_n_train_steps=100)
+    checkpoint_callback = ModelCheckpoint(save_last=True, every_n_train_steps=32)
     trainer = pl.Trainer(
         accelerator="gpu",
         devices=1,
