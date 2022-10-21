@@ -119,6 +119,32 @@ class SELayer(nn.Module):
         return x * y.expand_as(x)
 
 
+class FFN(nn.Module):
+    def __init__(self, dim, s=2):
+        super().__init__()
+        self.wi = nn.Conv2d(
+            dim,
+            dim * s * 2,
+            kernel_size=1,
+            padding=0,
+            bias=False,
+        )
+        self.wo = nn.Conv2d(
+            dim * s,
+            dim,
+            kernel_size=1,
+            padding=0,
+            bias=False,
+        )
+        self.act = NonLinear()
+
+    def forward(self, x):
+        x1, x2 = self.wi(x).chunk(2, dim=1)
+        x = x1 * self.act(x2)
+        x = self.wo(x)
+        return x
+
+
 class Block(nn.Module):
     def __init__(
         self,
@@ -138,10 +164,8 @@ class Block(nn.Module):
         self.layer = nn.Sequential(
             conv,
             LayerNorm2D(dim),
-            nn.Conv2d(dim, dim * 4, 1),
-            NonLinear(),
-            SELayer(dim * 4),
-            nn.Conv2d(dim * 4, dim, 1, bias=False),
+            FFN(dim),
+            SELayer(dim),
             LayerScaler(layer_scaler_init_value, dim),
             StochasticDepth(drop_p, mode="batch"),
         )
@@ -222,32 +246,6 @@ class SimpleLayer2D(nn.Module):
         x = self.to_image(x)
         x = self.module(x)
         x = self.to_video(x, bsz)
-        return x
-
-
-class FFN(nn.Module):
-    def __init__(self, dim, s=2):
-        super().__init__()
-        self.wi = nn.Conv2d(
-            dim,
-            dim * s * 2,
-            kernel_size=1,
-            padding=0,
-            bias=False,
-        )
-        self.wo = nn.Conv2d(
-            dim * s,
-            dim,
-            kernel_size=1,
-            padding=0,
-            bias=False,
-        )
-        self.act = NonLinear()
-
-    def forward(self, x):
-        x1, x2 = self.wi(x).chunk(2, dim=1)
-        x = x1 * self.act(x2)
-        x = self.wo(x)
         return x
 
 
