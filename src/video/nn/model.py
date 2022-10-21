@@ -121,6 +121,6 @@ class Decoder(nn.Module):
         x = torch.stack([x, ref, last_video_z], dim=-1)  # (B, C, H, W, 3)
         s = torch.stack(s.sigmoid().chunk(3, dim=1), dim=-1)  # (B, 1, H, W, 3)
         x = (x * s).sum(dim=-1)
-        x = self.to_rgb(x) + last_video
+        x = self.to_rgb(x)
         x = self.soft_clip(x, 0, 1).unsqueeze(1)
         return x
