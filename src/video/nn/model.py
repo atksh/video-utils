@@ -63,7 +63,7 @@ class Decoder(nn.Module):
         self.last_up_lr = UpsampleWithRefrence(last_dim, 3)
         self.fc_lr = nn.Conv2d(last_dim + 6, 3 * self.n_steps, 1)
 
-        self.refine_hr = Stage(last_dim, last_dim, 3, mode="up")
+        self.refine_hr = Stage(last_dim + 6, last_dim, 3, mode="up")
         self.last_up_hr = UpsampleWithRefrence(last_dim, 1)
         self.fc_hr = nn.Conv2d(last_dim + 1, 1 * self.n_steps, 1)
 
