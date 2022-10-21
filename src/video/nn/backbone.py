@@ -1,5 +1,4 @@
 import timm
-import torch
 from torch import nn
 
 from .layer import DualScaleDownsample
