@@ -49,7 +49,9 @@ class Decoder(nn.Module):
         self.refine_blocks = nn.ModuleList(refine_blocks)
 
         self.fc = nn.Sequential(
-            nn.Conv2d(last_dim, out_dim, kernel_size=1),
+            nn.Conv2d(last_dim, out_dim * 4, kernel_size=1),
+            nn.PixelShuffle(2),
+            nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True),
             Sigmoid(),
         )
 
