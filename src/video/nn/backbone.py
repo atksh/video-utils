@@ -20,7 +20,7 @@ class BlockDCTSandwich(nn.Module):
         super().__init__()
         self.module = module
         self.block_size = block_size
-        self.idx = self.build_idx()
+        self.idx = nn.Parameter(self.build_idx(), requires_grad=False)
 
     def build_idx(self):
         b = self.block_size
@@ -37,17 +37,18 @@ class BlockDCTSandwich(nn.Module):
         # out = [[0, 0], [0, 1], [1, 0], [2, 0], [1, 1], [0, 2], ...]
         out = [[i, j] for i in range(b) for j in range(b)]
         out = list(sorted(out, key=to_key))
-        out = torch.tensor(out)
-        return out
+        out = torch.tensor(out).view(b, b, 2)
+        out = torch.arange(b) * out[..., 0] + out[..., 1]
+        return out.view(1, 1, 1, -1)
 
     def forward(self, x):
         # nchw->nclb^2 where b = block_size
-        idx = self.idx.to(x.device)
         bsz, ch, *size = x.shape
         x = blockify(x, self.block_size)
         x = block_dct(x)
-        x = x[:, :, idx[:, 0], idx[:, 1]]  # sig-zag indexing
         x = x.reshape(bsz, ch, -1, self.block_size**2)
+        idx = self.idx.expand_as(x)
+        x = x.gather(-1, idx).contiguous()
         x = self.module(x)
         # nclb^2->nchw
         assert x.shape[-1] == self.block_size**2
