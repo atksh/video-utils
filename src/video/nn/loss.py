@@ -55,8 +55,9 @@ class MSSSIML1Loss(nn.Module):
         return torch.outer(gaussian_vec, gaussian_vec)
 
     def forward(self, x, y):
-        x = self.to_image(x)
-        y = self.to_image(y)
+        if x.ndim == 5:
+            x = self.to_image(x)
+            y = self.to_image(y)
 
         mux = F.conv2d(x, self.g_masks, groups=3, padding=self.pad)
         muy = F.conv2d(y, self.g_masks, groups=3, padding=self.pad)
