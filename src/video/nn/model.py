@@ -57,7 +57,7 @@ class Decoder(nn.Module):
         bsz = x.shape[0]
         size = ref.shape[-2:]
         x = self.to_image(x)
-        x = F.interpolate(x, size=size, mode="biliner", align_corners=True)
+        x = F.interpolate(x, size=size, mode="bilinear", align_corners=True)
         x = self.to_video(x, bsz)
         return x
 
