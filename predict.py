@@ -57,7 +57,7 @@ if __name__ == "__main__":
         imgs = []
         for t in range(n_steps):
             # stack with height
-            img = np.concatenate([gold[t], pred[t]], axis=0)
+            img = np.concatenate([gold[t], pred[t]], axis=1)
             imgs.append(img)
         # stack with width
         img = np.concatenate(imgs, axis=1)
