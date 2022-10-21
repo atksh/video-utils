@@ -71,6 +71,10 @@ class Decoder(nn.Module):
     def duplicate_last(self, x):
         return torch.cat([x, x[:, [-1]]], dim=1)
 
+    def soft_clip(self, x, lb, ub):
+        _x = torch.clamp(x, lb, ub)
+        return _x.detach() + x - x.detach()
+
     def forward(self, video, feats):
         feats = [self.duplicate_last(feat) for feat in feats]
         last_video = video[:, -1].contiguous()
@@ -96,6 +100,9 @@ class Decoder(nn.Module):
         cord_y = cord[:, 1].softmax(dim=-2).cumsum(dim=-2)
         cord = torch.stack([cord_x, cord_y], dim=-1) * 2 - 1
         ref = F.grid_sample(last_video, cord, mode="bilinear", align_corners=True)
-        s1, s2, s3 = s.sigmoid().chunk(3, dim=1)
-        x = s1 * last_video + s2 * ref + s3 * x.sigmoid()
+
+        s = torch.cat(s.softmax(dim=1).chunk(3, dim=1), dim=0)
+        x = torch.stack([x, ref, last_video], dim=0)
+        x = (x * s).sum(dim=0)
+        x = self.soft_clip(x, 0, 1)
         return x.unsqueeze(1)
