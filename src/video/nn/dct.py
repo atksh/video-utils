@@ -78,3 +78,43 @@ class DCTFreqConv(nn.Module):
 
     def forward(self, x):
         return self.sand(x)
+
+
+class Block(nn.Module):
+    def __init__(self, dim: int, window_size: int, block_size: int):
+        super().__init__()
+        self.conv = DCTFreqConv(
+            in_ch=dim, out_ch=dim, window_size=window_size, block_size=block_size
+        )
+        self.ln = nn.GroupNorm(1, dim)
+        self.mlp = nn.Sequential(
+            nn.Conv2d(dim, dim * 4, 1),
+            nn.SiLU(),
+            nn.Conv2d(dim * 4, dim, 1, bias=False),
+        )
+
+    def forward(self, x):
+        resid = x
+        x = self.conv(x)
+        x = self.ln(x)
+        x = self.mlp(x)
+        return x + resid
+
+
+class Stage(nn.Module):
+    def __init__(
+        self, in_dim: int, out_dim: int, window_size: int, block_size: int, depth: int
+    ):
+        super().__init__()
+        self.down = nn.Sequential(
+            nn.GroupNorm(1, in_dim), nn.Conv2d(in_dim, out_dim, kernel_size=2, stride=2)
+        )
+        self.blocks = nn.Sequential(
+            *[Block(out_dim, window_size, block_size) for _ in range(depth)]
+        )
+
+    def forward(self, x):
+        x = self.down(x)
+        for block in self.blocks:
+            x = block(x)
+        return x
