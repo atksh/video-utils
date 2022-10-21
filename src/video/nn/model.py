@@ -115,7 +115,7 @@ class Decoder(nn.Module):
         x = self.resize_like(x, last_video)
         # now x is (B, C, H, W)
         x, cord = x[:, :-2], x[:, -2:]
-        x, s = x.chunk(2, dim=1)
+        x, s = x[:, :-3], x[:, -3:]
         last_video_z = self.from_rgb(last_video)
         ref = self.get_ref(last_video_z, cord)
         x = torch.stack([x, ref, last_video_z], dim=-1)  # (B, C, H, W, 3)
