@@ -8,6 +8,8 @@ train_batch_size = 8
 predict_batch_size = 4
 fps = 30
 
+window_sizes = [3, 3, 3, 3]
+block_sizes = [8, 8, 4, 4]
 backbone_feat_dims = [80, 160, 320, 640]
 front_feat_dims = [16, 32, 64, 128]
 enc_num_heads = [1, 2, 4, 8]
