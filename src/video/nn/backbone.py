@@ -13,7 +13,7 @@ class Backbone(nn.Module):
         stem_dim: int,
         widths: List[int],
         depths: List[int],
-        drop_p: float = 0.25,
+        drop_p: float = 0.0,
     ):
         super().__init__()
         self.stem = nn.Conv2d(in_dim, stem_dim, kernel_size=2, stride=2, bias=False)

@@ -57,7 +57,7 @@ if __name__ == "__main__":
         imgs = []
         for t in range(n_steps):
             # stack with height
-            img = np.concatenate([gold[t], pred[t]], axis=0)
+            img = np.concatenate([pred[t], gold[t]], axis=0)
             # to gray scale and to rgb
             prev = golds[max(0, i - t - 1)][t]
             diff = np.abs(prev - pred[t])
