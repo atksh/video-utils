@@ -48,12 +48,15 @@ class Decoder(nn.Module):
         self.up_blocks = nn.ModuleList(up_blocks)
         self.refine_blocks = nn.ModuleList(refine_blocks)
 
-        self.fc = nn.Sequential(
-            nn.Conv2d(last_dim, out_dim * 4, kernel_size=1),
-            nn.PixelShuffle(2),
-            nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True),
-            Sigmoid(),
+        self.stem = nn.Conv2d(3, last_dim, 2, stride=2, bias=False)
+        self.last_up = Stage(last_dim, last_dim, 1, mode="up")
+        self.mlp = nn.Sequential(
+            nn.Conv2d(last_dim, last_dim, 3, padding=1),
+            nn.GroupNorm(1, last_dim),
+            nn.SiLU(),
+            nn.Conv2d(last_dim, out_dim * 2, 3, padding=1),
         )
+        self.sigmoid = Sigmoid()
 
     def resize_like(self, x, ref):
         bsz = None
@@ -82,6 +85,10 @@ class Decoder(nn.Module):
             x = refine_block(x)
         x = x[:, -1].contiguous()
         # now x is (B, C, H // 4, W // 4)
-        x = self.fc(x)
-        x = self.resize_like(x, last_video)
-        return x.unsqueeze(1)
+        x = self.last_up(x) + self.stem(last_video)
+        x = self.mlp(x)
+        x = self.sigmoid(x)
+        x = self.resize_like(x, video)
+        x, s = x.chunk(2, dim=1)
+        x = video * s + x * (1 - s)
+        return x
