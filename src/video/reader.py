@@ -87,7 +87,6 @@ class Video:
                 "i_qfactor": "0.75",
                 "b_qfactor": "1.1",
                 "aq-strength": "15",
-                "2pass": True,
             }
 
             options.update(gpu_options)
