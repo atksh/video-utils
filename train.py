@@ -45,7 +45,6 @@ if __name__ == "__main__":
         widths=widths,
         depths=depths,
         heads=heads,
-        drop_p=drop_p,
     )
 
     precision_callback = SetPrecisionCallback()

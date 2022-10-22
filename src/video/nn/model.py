@@ -2,16 +2,18 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from .backbone import Backbone
+from .freq_layer import FreqBackbone
 from .layer import ImageToVideo, Layer2D, Stage, VideoBlock, VideoToImage
 
 
 class Encoder(nn.Module):
-    def __init__(self, in_dim, stem_dim, widths, depths, heads, drop_p=0.0):
+    def __init__(self, in_dim, widths, depths, heads):
         super().__init__()
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
-        self.backbone = Backbone(in_dim, stem_dim, widths, [1] * len(depths), drop_p)
+        self.backbone = FreqBackbone(
+            in_ch=in_dim, depths=depths, widths=widths, block_size=8
+        )
 
         feat_time_blocks = []
         for i in range(len(widths)):
@@ -23,7 +25,7 @@ class Encoder(nn.Module):
         # (B, T, C, H, W) -> list of (B, T, C, H // k, W // k) k = 4, 8, ...
         bsz = video.shape[0]
         x = self.to_image(video)
-        feats = self.backbone(x)
+        feats = self.backbone(x, return_freq=False)
         feats = [self.to_video(feat, bsz) for feat in feats]
         feats = [self.feat_time_blocks[i](feat) for i, feat in enumerate(feats)]
         return feats
@@ -56,12 +58,7 @@ class Decoder(nn.Module):
 
         self.stem = nn.Conv2d(3, last_dim, 2, stride=2, bias=False)
         self.last_up = Stage(last_dim, last_dim, 1, mode="up")
-        self.mlp = nn.Sequential(
-            nn.Conv2d(last_dim * 2, last_dim, 3, padding=1, bias=False),
-            nn.GroupNorm(1, last_dim),
-            nn.SiLU(),
-            nn.Conv2d(last_dim, out_dim, 1),
-        )
+        self.fc = nn.Conv2d(last_dim, out_dim, 1)
 
     def resize_like(self, x, ref):
         bsz = None
@@ -107,7 +104,7 @@ class Decoder(nn.Module):
         x = self.resize_like(x, z)
         x = torch.cat([x, z], dim=1)
         # now x is (B, C, H // 2, W // 2)
-        x = self.mlp(x)
+        x = self.fc(x)
         x = self.resize_like(x, last_video)
         # now x is (B, C, H, W)
         x = self.soft_clip(x, 0, 1).unsqueeze(1)

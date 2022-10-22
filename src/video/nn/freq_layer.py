@@ -55,21 +55,21 @@ class BlockDCTSandwich(nn.Module):
     def to_zigzag(self, x):
         bsz, ch, n = x.shape[:3]
         x = x.view(bsz, ch, n, self.block_size**2)
-        idx = torch.LongTensor(self.idx, device=x.device)
+        idx = torch.tensor(self.idx, device=x.device, dtype=torch.long)
         idx = idx.view(1, 1, 1, -1).expand_as(x)
         return x.gather(-1, idx)
 
     def from_zigzag(self, x):
         bsz, ch, n = x.shape[:3]
         x = x.view(bsz, ch, n, self.block_size**2)
-        inv_idx = torch.LongTensor(self.inv_idx, device=x.device)
+        inv_idx = torch.tensor(self.inv_idx, device=x.device, dtype=torch.long)
         inv_idx = inv_idx.view(1, 1, 1, -1).expand_as(x)
         x = x.gather(-1, inv_idx)
         return x.view(bsz, ch, n, self.block_size, self.block_size)
 
     def out_size(self, h, w):
-        out_h = math.ceil((h - self.block_size) / self.block_size + 1)
-        out_w = math.ceil((w - self.block_size) / self.block_size + 1)
+        out_h = math.ceil((h - self.block_size + 1) / self.block_size)
+        out_w = math.ceil((w - self.block_size + 1) / self.block_size)
         return out_h, out_w
 
     def pre(self, x):

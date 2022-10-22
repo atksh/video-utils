@@ -119,10 +119,9 @@ class Model(pl.LightningModule):
         widths,
         depths,
         heads,
-        drop_p,
     ):
         super().__init__()
-        self.encoder = Encoder(in_dim, stem_dim, widths, depths, heads, drop_p)
+        self.encoder = Encoder(in_dim, widths, depths, heads)
         self.decoder = Decoder(in_dim, stem_dim, widths, depths, heads)
         self.loss = MSSSIML1Loss()
 
