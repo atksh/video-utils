@@ -1,9 +1,11 @@
 import torch
 import torch.nn.functional as F
+from functorch.compile import memory_efficient_fusion
 from torch import nn
 from torchjpeg.dct import block_dct, block_idct, blockify, deblockify
 
-from .ckpt import ckpt_forward
+aot_block_dct = memory_efficient_fusion(block_dct)
+aot_block_idct = memory_efficient_fusion(block_idct)
 
 
 class BlockDCTSandwich(nn.Module):
@@ -56,11 +58,10 @@ class BlockDCTSandwich(nn.Module):
         x = x.gather(-1, inv_idx).contiguous()
         return x.view(bsz, ch, n, self.block_size, self.block_size)
 
-    @ckpt_forward
     def forward(self, x):
         bsz, in_ch, *size = x.shape
         x = blockify(x, self.block_size)
-        x = block_dct(x)
+        x = aot_block_dct(x)
         if self.zigzag:
             x = self.to_zigzag(x)
         else:
@@ -70,7 +71,7 @@ class BlockDCTSandwich(nn.Module):
             x = self.from_zigzag(x)
         else:
             x = x.view(bsz, in_ch, -1, self.block_size, self.block_size)
-        x = block_idct(x)
+        x = aot_block_idct(x)
         x = deblockify(x, size)
         return x
 
