@@ -9,13 +9,16 @@ from torchjpeg.dct import block_dct, block_idct, blockify, deblockify
 
 from .fuse import aot_fuse
 
+aot_block_dct = aot_fuse(block_dct)
+aot_block_idct = aot_fuse(block_idct)
+
 
 def dct(x):
-    return block_dct(x)
+    return aot_block_dct(x)
 
 
 def idct(x):
-    return block_idct(x)
+    return aot_block_idct(x)
 
 
 class BlockDCTSandwich(nn.Module):
@@ -627,7 +630,7 @@ class FreqVideoDecoder(nn.Module):
         return x[:, [-1]]
 
 
-class _FreqVideoModel(nn.Module):
+class FreqVideoModel(nn.Module):
     def __init__(self, in_ch, depths, widths, block_size, n, heads):
         super().__init__()
         self.encoder = FreqVideoEncoder(
@@ -651,7 +654,3 @@ class _FreqVideoModel(nn.Module):
         feats = self.encoder(x)
         x = self.decoder(x, feats)
         return x
-
-
-def FreqVideoModel(*args, **kwargs):
-    return aot_fuse(_FreqVideoModel(*args, **kwargs))
