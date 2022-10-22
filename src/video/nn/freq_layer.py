@@ -56,18 +56,20 @@ class BlockDCTSandwich(nn.Module):
         out = torch.tensor(out).view(b, b, 2)
         out = torch.arange(b) * out[..., 0] + out[..., 1]
         inv_out = torch.argsort(out)
-        return out.to_list(), inv_out.to_list()
+        return out.tolist(), inv_out.tolist()
 
     def to_zigzag(self, x):
         bsz, ch, n = x.shape[:3]
         x = x.view(bsz, ch, n, self.block_size**2)
-        idx = torch.LongTensor(self.idx, device=x.device).expand_as(x)
+        idx = torch.LongTensor(self.idx, device=x.device)
+        idx = idx.view(1, 1, 1, -1).expand_as(x)
         return x.gather(-1, idx)
 
     def from_zigzag(self, x):
         bsz, ch, n = x.shape[:3]
         x = x.view(bsz, ch, n, self.block_size**2)
-        inv_idx = torch.LongTensor(self.inv_idx, device=x.device).expand_as(x)
+        inv_idx = torch.LongTensor(self.inv_idx, device=x.device)
+        inv_idx = inv_idx.view(1, 1, 1, -1).expand_as(x)
         x = x.gather(-1, inv_idx)
         return x.view(bsz, ch, n, self.block_size, self.block_size)
 
@@ -203,9 +205,15 @@ class FreqPassFilter(nn.Module):
         length = block_size**2
         self.x = nn.Parameter(torch.zeros(ch, length))
 
+    def reverse_order(self, x, dim: int):
+        idx = torch.arange(x.shape[dim] - 1, -1, -1, device=x.device)
+        return x.index_select(dim, idx)
+
     def get_filter(self):
         s1 = F.softmax(self.x, dim=-1).cumsum(dim=-1)
-        s2 = torch.flip(self.x, dim=-1).softmax(dim=-1).cumsum(dim=-1).flip(dim=-1)
+        s2 = self.reverse_order(
+            self.reverse_order(self.x, dim=-1).softmax(dim=-1).cumsum(dim=-1)
+        )
         s = torch.minimum(s1, s2)  # (ch, length)
         s = s / s.sum(dim=-1, keepdim=True)  # normalize
         return s
@@ -250,11 +258,12 @@ class FreqCondFFN(nn.Module):
 
 
 class FreqCondConv2dBase(nn.Module):
-    def __init__(self, in_ch, out_ch, kernel_size, block_size):
+    def __init__(self, in_ch, out_ch, kernel_size, stride, padding, block_size):
         super().__init__()
         self.block_size = block_size
-        self.padding = (kernel_size - 1) // 2
+        self.padding = padding
         self.kernel_size = kernel_size
+        self.stride = stride
         shape = (out_ch, in_ch * kernel_size**2)
         self.params = DeepSpace(n=block_size**2, shape=shape)
 
@@ -263,16 +272,14 @@ class FreqCondConv2dBase(nn.Module):
         bsz, h, w, ch, n = x.shape
         x = x.permute(0, 4, 3, 1, 2)  # (b, n, ch, h, w)
         x = x.reshape(bsz * n, ch, h, w)  # (b * n, ch, h, w)
-        x = F.unfold(x, self.kernel_size, padding=self.padding)
+        x = F.unfold(x, self.kernel_size, padding=self.padding, stride=self.stride)
         # (b * n, ch * kernel_size**2, L)
         return x.view(bsz, n, *x.shape[1:])
 
     def col2im(self, x, size):
-        # x: (b, n, ch * kernel_size**2, L)
+        # x: (b, n, ch, L) where L = h * w
         bsz, n = x.shape[:2]
-        x = x.view(bsz * n, *x.shape[2:])  # (b * n, ch * kernel_size**2, L)
-        x = F.fold(x, size, self.kernel_size, padding=self.padding)  # (b * n, ch, h, w)
-        x = x.reshape(bsz, -1, *x.shape[1:])  # (b, n, ch, h, w)
+        x = x.view(bsz, n, -1, *size)
         x = x.permute(0, 3, 4, 2, 1)  # (b, h, w, ch, n)
         return x
 
@@ -289,7 +296,7 @@ class FreqCondConv2dBase(nn.Module):
 
 
 class GroupFreqCondConv2d(nn.Module):
-    def __init__(self, in_ch, out_ch, kernel_size, groups, block_size):
+    def __init__(self, in_ch, out_ch, kernel_size, stride, padding, groups, block_size):
         super().__init__()
         if in_ch % groups != 0:
             raise ValueError(f"in_ch ({in_ch}) must be divisible by groups ({groups})")
@@ -298,9 +305,14 @@ class GroupFreqCondConv2d(nn.Module):
                 f"out_ch ({out_ch}) must be divisible by groups ({groups})"
             )
 
+        self.groups = groups
         convs = []
         for _ in range(groups):
-            convs.append(FreqCondConv2dBase(in_ch, out_ch, kernel_size, block_size))
+            convs.append(
+                FreqCondConv2dBase(
+                    in_ch, out_ch, kernel_size, stride, padding, block_size
+                )
+            )
         self.convs = nn.ModuleList(convs)
 
     def forward(self, x):
@@ -313,11 +325,15 @@ class GroupFreqCondConv2d(nn.Module):
         return x
 
 
-def FreqCondConv2d(in_ch, out_ch, kernel_size, groups, block_size):
+def FreqCondConv2d(in_ch, out_ch, *, kernel_size, stride, padding, groups, block_size):
     if groups == 1:
-        return FreqCondConv2dBase(in_ch, out_ch, kernel_size, block_size)
+        return FreqCondConv2dBase(
+            in_ch, out_ch, kernel_size, stride, padding, block_size
+        )
     else:
-        return GroupFreqCondConv2d(in_ch, out_ch, kernel_size, groups, block_size)
+        return GroupFreqCondConv2d(
+            in_ch, out_ch, kernel_size, stride, padding, groups, block_size
+        )
 
 
 class FreqCondLayerNorm(nn.Module):
@@ -359,15 +375,89 @@ class FreqCondChannelLinear(nn.Module):
 
 
 class FreqCondBlock(nn.Module):
-    def __init__(self, ch, block_size, kernel_size=5, expand_factor=2):
+    def __init__(self, ch, block_size, kernel_size=3, expand_factor=2):
         super().__init__()
-        self.conv = FreqCondConv2d(ch, ch, kernel_size, ch, block_size)
+        self.conv = FreqCondConv2d(
+            ch,
+            ch,
+            kernel_size=kernel_size,
+            stride=1,
+            padding=(kernel_size - 1) // 2,
+            groups=ch,
+            block_size=block_size,
+        )
+        self.filter = FreqPassFilter(ch, block_size)
         self.ln = FreqCondLayerNorm(ch, block_size)
         self.ffn = FreqCondFFN(ch, block_size, expand_factor=expand_factor)
 
     def forward(self, x):
         # x: (b, h, w, ch, block_size**2)
         x = self.conv(x)
+        x = self.filter(x)
         x = self.ln(x)
         x = self.ffn(x)
+        return x
+
+
+class FreqCondStage(nn.Module):
+    def __init__(self, in_ch, out_ch, depth, block_size, **kwargs):
+        super().__init__()
+        blocks = []
+        for _ in range(depth):
+            blocks.append(FreqCondBlock(in_ch, block_size, **kwargs))
+        self.blocks = nn.ModuleList(blocks)
+
+        self.downsample = FreqCondConv2d(
+            in_ch,
+            out_ch,
+            kernel_size=2,
+            stride=2,
+            padding=0,
+            groups=1,
+            block_size=block_size,
+        )
+        self.ln = FreqCondLayerNorm(out_ch, block_size)
+
+    def forward(self, x):
+        # x: (b, h, w, ch, block_size**2)
+        for block in self.blocks:
+            x = x + block(x)
+        x = self.downsample(x)
+        x = self.ln(x)
+        return x
+
+
+class FreqBackbone(nn.Module):
+    def __init__(
+        self, *, in_ch=3, depths=[1, 1, 1, 1], widths=[8, 16, 32, 64], block_size=8
+    ):
+        super().__init__()
+        self.to_freq = DCT(block_size, zigzag=True)
+        self.stem = FreqCondConv2d(
+            in_ch,
+            widths[0],
+            kernel_size=3,
+            stride=1,
+            padding=1,
+            groups=1,
+            block_size=block_size,
+        )
+        stages = []
+        for i in range(len(depths)):
+            in_width = widths[max(0, i - 1)]
+            out_width = widths[i]
+            depth = depths[i]
+            stages.append(
+                FreqCondStage(
+                    in_ch=in_width, out_ch=out_width, depth=depth, block_size=block_size
+                )
+            )
+
+        self.stages = nn.ModuleList(stages)
+
+    def forward(self, x):
+        x = self.to_freq(x)
+        x = self.stem(x)
+        for stage in self.stages:
+            x = stage(x)
         return x
