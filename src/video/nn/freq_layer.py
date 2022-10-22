@@ -156,15 +156,11 @@ class DeepSpace(nn.Module):
         out_dim = np.prod(self.shape)
 
         self.x = nn.Parameter(torch.linspace(0, 1, n), requires_grad=False)
-        dims = [max(64, out_dim // 2), max(128, out_dim), max(256, out_dim * 2)]
+        hidden_dim = max(32, out_dim // 4)
         self.mlp = nn.Sequential(
-            nn.LazyLinear(dims[0]),
+            nn.Linear(14, hidden_dim),
             nn.SiLU(),
-            nn.Linear(dims[0], dims[1]),
-            nn.SiLU(),
-            nn.Linear(dims[1], dims[2]),
-            nn.SiLU(),
-            nn.Linear(dims[2], out_dim),
+            nn.Linear(hidden_dim, out_dim),
         )
 
     def soft_clip(self, x):
@@ -371,9 +367,7 @@ class FreqCondBlock(nn.Module):
 
     def forward(self, x):
         # x: (b, h, w, ch, block_size**2)
-        resid = x
         x = self.conv(x)
         x = self.ln(x)
         x = self.ffn(x)
-        x = x + resid
         return x
