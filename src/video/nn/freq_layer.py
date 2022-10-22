@@ -134,7 +134,7 @@ class IDCT(BlockDCTSandwich):
         super().__init__(nn.Identity(), block_size, zigzag)
 
     def forward(self, x, size):
-        return super().post(x)
+        return super().post(x, size)
 
 
 class DeepSpace(nn.Module):
@@ -434,6 +434,7 @@ class FreqBackbone(nn.Module):
     ):
         super().__init__()
         self.to_freq = DCT(block_size, zigzag=True)
+        self.from_freq = IDCT(block_size, zigzag=True)
         self.stem = FreqCondConv2d(
             in_ch,
             widths[0],
@@ -443,6 +444,7 @@ class FreqBackbone(nn.Module):
             groups=1,
             block_size=block_size,
         )
+
         stages = []
         for i in range(len(depths)):
             in_width = widths[max(0, i - 1)]
@@ -457,8 +459,13 @@ class FreqBackbone(nn.Module):
         self.stages = nn.ModuleList(stages)
 
     def forward(self, x):
+        # x: (b, ch, h, w)
+        h, w = x.shape[-2:]
         x = self.to_freq(x)
         x = self.stem(x)
-        for stage in self.stages:
+        feats = []
+        for i, stage in enumerate(self.stages):
             x = stage(x)
-        return x
+            size = (h // 2 ** (i + 1), w // 2 ** (i + 1))
+            feats.append(self.from_freq(x, size=size))
+        return feats
