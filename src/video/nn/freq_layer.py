@@ -9,16 +9,13 @@ from torchjpeg.dct import block_dct, block_idct, blockify, deblockify
 
 from .fuse import aot_fuse
 
-aot_block_dct = aot_fuse(block_dct)
-aot_block_idct = aot_fuse(block_idct)
-
 
 def dct(x):
-    return aot_block_dct(x)
+    return block_dct(x)
 
 
 def idct(x):
-    return aot_block_idct(x)
+    return block_idct(x)
 
 
 class BlockDCTSandwich(nn.Module):
@@ -230,10 +227,15 @@ class FreqCondFFN(nn.Module):
     def forward(self, x):
         # x: (b, n, ch, h, w)
         w1, w2, w3 = self.get_weights()  # (n, dim * expand_factor, dim)
-        x1 = torch.einsum("blchw,ldc->blhwd", x, w1)
-        x2 = torch.einsum("blchw,ldc->blhwd", x, w2)
+        x = x.permute(0, 1, 3, 4, 2)  # (b, n, h, w, ch)
+        # x1 = torch.einsum("blhwc,ldc->blhwd", x, w1)
+        # x2 = torch.einsum("blhwc,ldc->blhwd", x, w2)
+        x1 = torch.matmul(x, w1.unsqueeze(1).transpose(-1, -2))
+        x2 = torch.matmul(x, w2.unsqueeze(1).transpose(-1, -2))
         x = x1 * F.silu(x2)
-        x = torch.einsum("blhwc,lcd->bldhw", x, w3)
+        # x = torch.einsum("blhwc,lcd->blhwd", x, w3)
+        x = torch.matmul(x, w3.unsqueeze(1))
+        x = x.permute(0, 1, 4, 2, 3)  # (b, n, ch, h, w)
         return x
 
 
@@ -270,7 +272,8 @@ class FreqCondConv2dBase(nn.Module):
         x = self.im2col(x)  # (b, n, ch * kernel_size**2, L)
         w = self.params()  # (n, out_ch, in_ch * kernel_size**2)
         x = x.permute(0, 1, 3, 2)  # (b, n, L, ch * kernel_size**2)
-        x = torch.einsum("bnlc,ndc->bnld", x, w)  # (b, n, L, out_ch)
+        # x = torch.einsum("bnlc,ndc->bnld", x, w)  # (b, n, L, out_ch)
+        x = torch.matmul(x, w.transpose(-1, -2))
         x = x.permute(0, 1, 3, 2)  # (b, n, out_ch, L)
         x = self.col2im(x, size)
         return x
@@ -348,7 +351,10 @@ class FreqCondChannelLinear(nn.Module):
     def forward(self, x):
         # x: (b, n, ch, h, w)
         w = self.params()  # (n, out_ch, in_ch)
-        x = torch.einsum("bnchw,ndc->bndhw", x, w)
+        x = x.permute(0, 1, 3, 4, 2)  # (b, n, h, w, ch)
+        # x = torch.einsum("bnhwc,ndc->bnhwd", x, w)
+        x = torch.matmul(x, w.unsqueeze(1).transpose(-1, -2))
+        x = x.permute(0, 1, 4, 2, 3)  # (b, n, out_ch, h, w)
         return x
 
 
@@ -410,7 +416,10 @@ class Compress(nn.Module):
         nn.init.trunc_normal_(self.w, std=0.02)
 
     def forward(self, x):
-        return torch.einsum("bnchw,mn->bmchw", x, self.w)
+        x = x.permute(0, 2, 3, 4, 1)  # (b, ch, h, w, n)
+        x = torch.matmul(x, self.w.transpose(-1, -2))
+        x = x.permute(0, 4, 1, 2, 3)  # (b, n, ch, h, w)
+        return x
 
 
 class Decompress(nn.Module):
@@ -420,7 +429,10 @@ class Decompress(nn.Module):
         nn.init.trunc_normal_(self.w, std=0.02)
 
     def forward(self, x):
-        return torch.einsum("bmchw,nm->bnchw", x, self.w)
+        x = x.permute(0, 2, 3, 4, 1)  # (b, ch, h, w, n)
+        x = torch.matmul(x, self.w.transpose(-1, -2))
+        x = x.permute(0, 4, 1, 2, 3)  # (b, n, ch, h, w)
+        return x
 
 
 class FreqBackbone(nn.Module):
@@ -523,13 +535,17 @@ class FreqAttention(nn.Module):
         q = self.proj_q(q)
         k = self.proj_k(kv)
         v = self.proj_v(kv)
-        q = q.view(bsz, len_s, n, self.heads, ch // self.heads, *size)
-        k = k.view(bsz, len_t, n, self.heads, ch // self.heads, *size)
-        v = v.view(bsz, len_t, n, self.heads, ch // self.heads, *size)
+        q = q.reshape(bsz, len_s, n, self.heads, ch // self.heads, *size)
+        k = k.reshape(bsz, len_t, n, self.heads, ch // self.heads, *size)
+        v = v.reshape(bsz, len_t, n, self.heads, ch // self.heads, *size)
 
-        score = torch.einsum("bsnzchw,btnzchw->bnhwzst", q, k) / math.sqrt(ch)
+        # -> (bsz, n, heads, size[0], size[1], len_s or len_t, ch // heads)
+        q = q.permute(0, 2, 3, -2, -1, 1, 4)
+        k = k.permute(0, 2, 3, -2, -1, 4, 1)
+        v = v.permute(0, 2, 3, -2, -1, 1, 4)
+        score = torch.matmul(q, k) / math.sqrt(ch // self.heads)
         attn = score.softmax(dim=-1)
-        out = torch.einsum("bnhwzst,btnzchw->bsnzchw", attn, v)
+        out = torch.matmul(attn, v).permute(0, -2, 1, 2, -1, 3, 4)
         out = out.reshape(bsz, len_s, n, ch, *size)
         return out
 
@@ -609,3 +625,33 @@ class FreqVideoDecoder(nn.Module):
         x = self.from_freq(x, size=size)
         x = x.view(bsz, t, *x.shape[1:])
         return x[:, [-1]]
+
+
+class _FreqVideoModel(nn.Module):
+    def __init__(self, in_ch, depths, widths, block_size, n, heads):
+        super().__init__()
+        self.encoder = FreqVideoEncoder(
+            in_ch=in_ch,
+            depths=depths,
+            widths=widths,
+            block_size=block_size,
+            n=n,
+            heads=heads,
+        )
+        self.decoder = FreqVideoDecoder(
+            in_ch=in_ch,
+            depths=depths,
+            widths=widths,
+            block_size=block_size,
+            n=n,
+            heads=heads,
+        )
+
+    def forward(self, x):
+        feats = self.encoder(x)
+        x = self.decoder(x, feats)
+        return x
+
+
+def FreqVideoModel(*args, **kwargs):
+    return aot_fuse(_FreqVideoModel(*args, **kwargs))

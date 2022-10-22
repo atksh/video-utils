@@ -7,7 +7,7 @@ from adabelief_pytorch import AdaBelief
 from tqdm import tqdm
 
 from .dataset import VideoDataset
-from .nn.freq_layer import FreqVideoDecoder, FreqVideoEncoder
+from .nn.freq_layer import FreqVideoModel
 from .nn.loss import MSSSIML1Loss
 
 
@@ -121,18 +121,13 @@ class Model(pl.LightningModule):
         heads,
     ):
         super().__init__()
-        self.encoder = FreqVideoEncoder(
-            in_dim, depths, widths, block_size=8, n=8, heads=heads
-        )
-        self.decoder = FreqVideoDecoder(
+        self.model = FreqVideoModel(
             in_dim, depths, widths, block_size=8, n=8, heads=heads
         )
         self.loss = MSSSIML1Loss()
 
     def forward(self, video):
-        feats = self.encoder(video)
-        print([f.shape for f in feats], video.shape)
-        return self.decoder(video, feats)
+        return self.model(video)
 
     def training_step(self, batch, batch_idx):
         x, y = batch
