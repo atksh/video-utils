@@ -1,9 +1,10 @@
 import revlib
 import torch
-from functorch.compile import memory_efficient_fusion
 from torch import nn
 from torch.nn import functional as F
 from torchvision.ops import StochasticDepth
+
+from .fuse import aot_fuse
 
 NEG_INF = -5000.0
 
@@ -52,9 +53,9 @@ class Sequential(nn.Module):
 
 def ReversibleSequential(layers, split_dim):
     if len(layers) <= 4:
-        return memory_efficient_fusion(Sequential(layers))
+        return aot_fuse(Sequential(layers))
     else:
-        layers = [memory_efficient_fusion(layer) for layer in layers]
+        layers = [aot_fuse(layer) for layer in layers]
         return _ReversibleSequential(layers, split_dim)
 
 
