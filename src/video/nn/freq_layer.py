@@ -677,6 +677,7 @@ class FreqVideoDecoder(nn.Module):
         x = self.fc(x.view(bsz * t, *x.shape[2:]))
         x = self.decompress(x)
         x = self.from_freq(x, size=size)
+        x = x.sigmoid()
         x = x.view(bsz, t, *x.shape[1:])
         return x[:, [-1]]
 
