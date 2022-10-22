@@ -407,23 +407,23 @@ class FreqCondStage(nn.Module):
 class Compress(nn.Module):
     def __init__(self, block_size, n):
         super().__init__()
-        self.w = nn.Conv3d(block_size**2, n, kernel_size=1, bias=False)
+        self.w = nn.Parameter(torch.zeros((n, block_size**2)))
+        nn.init.trunc_normal_(self.w, std=0.02)
 
     def forward(self, x):
         # x: (b, block_size ** 2, ch, h, w)
-        x = self.w(x)
-        return x
+        return torch.einsum("bnchw,dc->bndhw", x, self.w)
 
 
 class Decompress(nn.Module):
     def __init__(self, block_size, n):
         super().__init__()
-        self.w = nn.Conv3d(n, block_size**2, kernel_size=1, bias=False)
+        self.w = nn.Parameter(torch.zeros((block_size**2, n)))
+        nn.init.trunc_normal_(self.w, std=0.02)
 
     def forward(self, x):
         # x: (b, n, ch, h, w)
-        x = self.w(x)
-        return x
+        return torch.einsum("bnchw,dc->bndhw", x, self.w)
 
 
 class FreqBackbone(nn.Module):
@@ -461,6 +461,7 @@ class FreqBackbone(nn.Module):
                 FreqCondStage(in_ch=in_width, out_ch=out_width, depth=depth, n=n)
             )
 
+        stages = [aot_fuse(stage) for stage in stages]
         self.stages = nn.ModuleList(stages)
         if not self.return_freq:
             self.decompress = Decompress(block_size=block_size, n=n)
