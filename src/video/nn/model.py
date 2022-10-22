@@ -58,7 +58,7 @@ class Decoder(nn.Module):
 
         self.stem = nn.Conv2d(3, last_dim, 2, stride=2, bias=False)
         self.last_up = Stage(last_dim, last_dim, 1, mode="up")
-        self.fc = nn.Conv2d(last_dim, out_dim, 1)
+        self.fc = nn.Conv2d(last_dim * 2, out_dim, 1)
 
     def resize_like(self, x, ref):
         bsz = None
