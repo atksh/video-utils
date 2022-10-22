@@ -453,7 +453,7 @@ class FreqBackbone(nn.Module):
 
         self.stages = nn.ModuleList(stages)
 
-    def forward(self, x, return_freq=False):
+    def forward(self, x, return_freq=True):
         # x: (b, ch, h, w)
         h, w = x.shape[-2:]
         x = self.to_freq(x)
@@ -471,3 +471,19 @@ class FreqBackbone(nn.Module):
                 size = (h // 2 ** (i + 1), w // 2 ** (i + 1))
                 feats.append(self.from_freq(x, size=size))
         return feats
+
+
+class FreqHead(nn.Module):
+    def __init__(self, *, in_ch, out_ch, block_size):
+        super().__init__()
+        self.proj = FreqCondChannelLinear(in_ch, out_ch, block_size)
+        self.freq_proj = nn.Linear(block_size**2, 1)
+
+    def forward(self, x):
+        # x: (b, block_size**2, ch, h', w')
+        x = x.mean(dim=[-1, -2])  # (b, block_size**2, in_ch)
+        x = self.proj(x)  # (b, block_size**2, out_ch)
+        x = x.transpose(1, 2)  # (b, out_ch, block_size**2)
+        x = self.freq_proj(x)  # (b, out_ch, 1)
+        x = x.squeeze(-1)  # (b, out_ch)
+        return x
