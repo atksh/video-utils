@@ -565,7 +565,7 @@ class FreqVideoEncoder(nn.Module):
         )
         attns = []
         for i in range(len(depths)):
-            attns.append(FreqAttention(widths[i], n, heads[i]))
+            attns.append(nn.Sequential(FreqAttention(widths[i], n, heads[i]), FreqCondLayerNorm(widths[i], n))
         self.attns = nn.ModuleList(attns)
 
     def forward(self, x):
@@ -573,7 +573,7 @@ class FreqVideoEncoder(nn.Module):
         x = x.view(b * t, *x.shape[2:])
         feats = self.backbone(x)
         feats = [f.view(b, t, *f.shape[1:]) for f in feats]
-        feats = [f + attn(f, f) for attn, f in zip(self.attns, feats)]
+        feats = [attn(f, f) for attn, f in zip(self.attns, feats)]
         return feats
 
 
@@ -586,7 +586,12 @@ class FreqVideoDecoder(nn.Module):
         for i in reversed(range(1, len(depths))):
             add_ch = widths[i - 1]
             projs.append(FreqCondChannelLinear(widths[i] + add_ch, widths[i - 1], n))
-            attns.append(FreqAttention(widths[i - 1], n, heads[i - 1]))
+            attns.append(
+                nn.Sequential(
+                    FreqAttention(widths[i - 1], n, heads[i - 1]),
+                    FreqCondLayerNorm(widths[i - 1], n),
+                )
+            )
 
         self.attns = nn.ModuleList(attns)
         self.projs = nn.ModuleList(projs)
@@ -617,7 +622,7 @@ class FreqVideoDecoder(nn.Module):
             x = x.view(bsz * t, *x.shape[2:])
             x = self.projs[i](x)
             x = x.view(bsz, t, *x.shape[1:])
-            x = self.attns[i](x, x) + x
+            x = self.attns[i](x, x)
 
         x = self.interpolate(
             x, size=(size[0] // self.block_size, size[1] // self.block_size)
