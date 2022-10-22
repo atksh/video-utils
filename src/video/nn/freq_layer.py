@@ -467,11 +467,11 @@ class FreqBackbone(nn.Module):
             )
 
         self.stages = nn.ModuleList(stages)
-        if self.return_freq:
+        if not self.return_freq:
             self.decompress = Decompress(block_size=block_size, n=n)
             self.from_freq = IDCT(block_size, zigzag=True)
 
-    def forward(self, x, return_freq=True):
+    def forward(self, x):
         # x: (b, ch, h, w)
         h, w = x.shape[-2:]
         x = self.to_freq(x)
@@ -484,7 +484,7 @@ class FreqBackbone(nn.Module):
             # shape info
             # freq: (bsz, n, dim, h', w')
             # non_freq: (bsz, dim, h', w')
-            if return_freq:
+            if self.return_freq:
                 feats.append(x)
             else:
                 size = (h // 2 ** (i + 1), w // 2 ** (i + 1))
