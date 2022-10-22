@@ -58,21 +58,31 @@ class BlockDCTSandwich(nn.Module):
         x = x.gather(-1, inv_idx).contiguous()
         return x.view(bsz, ch, n, self.block_size, self.block_size)
 
-    def forward(self, x):
-        bsz, in_ch, *size = x.shape
+    def pre(self, x):
+        bsz, in_ch = x.shape[:2]
         x = blockify(x, self.block_size)
         x = aot_block_dct(x)
         if self.zigzag:
             x = self.to_zigzag(x)
         else:
             x = x.view(bsz, in_ch, -1, self.block_size**2)
-        x = self.module(x)
+        return x
+
+    def post(self, x, size):
+        bsz, out_ch = x.shape[:2]
         if self.zigzag:
             x = self.from_zigzag(x)
         else:
-            x = x.view(bsz, in_ch, -1, self.block_size, self.block_size)
+            x = x.view(bsz, out_ch, -1, self.block_size, self.block_size)
         x = aot_block_idct(x)
         x = deblockify(x, size)
+        return x
+
+    def forward(self, x):
+        size = x.shape[-2:]
+        x = self.pre(x)
+        x = self.module(x)
+        x = self.post(x, size)
         return x
 
 
@@ -96,7 +106,7 @@ class DCTFreqConv(nn.Module):
     def __init__(self, in_ch, out_ch, window_size: int, block_size: int, groups=1):
         super().__init__()
         conv = FreqConv(in_ch, out_ch, window_size=window_size, groups=groups)
-        self.sand = BlockDCTSandwich(conv, block_size)
+        self.sand = BlockDCTSandwich(conv, block_size, zigzag=True)
 
     def forward(self, x):
         return self.sand(x)
