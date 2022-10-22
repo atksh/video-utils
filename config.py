@@ -4,7 +4,7 @@ max_len = 32
 
 num_workers = 8
 train_batch_size = 1
-predict_batch_size = 4
+predict_batch_size = 1
 fps = 30
 n_steps = 1
 

@@ -432,7 +432,7 @@ class FreqBackbone(nn.Module):
         widths=[8, 16, 24, 32],
         block_size=8,
         n=8,
-        return_freq=False,
+        return_freq=True,
     ):
         super().__init__()
         self.return_freq = return_freq
@@ -497,4 +497,114 @@ class FreqHead(nn.Module):
         x = x.transpose(1, 2)  # (b, out_ch, n)
         x = self.freq_proj(x)  # (b, out_ch, 1)
         x = x.squeeze(-1)  # (b, out_ch)
+        return x
+
+
+class FreqAttention(nn.Module):
+    def __init__(self, ch, n, heads):
+        super().__init__()
+        self.heads = heads
+        self.proj_q = FreqCondChannelLinear(ch, ch, n)
+        self.proj_k = FreqCondChannelLinear(ch, ch, n)
+        self.proj_v = FreqCondChannelLinear(ch, ch, n)
+
+    def forward(self, q, kv):
+        # q: (b, t, n, ch, h, w)
+        # kv: (b, t', n, ch, h, w)
+        bsz = q.shape[0]
+        len_s = q.shape[1]
+        len_t = kv.shape[1]
+        ch = q.shape[-3]
+        n = q.shape[-4]
+        size = q.shape[-2:]
+
+        q = q.view(bsz * len_s, *q.shape[2:])
+        kv = kv.view(bsz * len_t, *kv.shape[2:])
+        q = self.proj_q(q)
+        k = self.proj_k(kv)
+        v = self.proj_v(kv)
+        q = q.view(bsz, len_s, n, self.heads, ch // self.heads, *size)
+        k = k.view(bsz, len_t, n, self.heads, ch // self.heads, *size)
+        v = v.view(bsz, len_t, n, self.heads, ch // self.heads, *size)
+
+        score = torch.einsum("bsnzchw,btnzchw->bnhwzst", q, k) / math.sqrt(ch)
+        attn = score.softmax(dim=-1)
+        out = torch.einsum("bnhwzst,btnzchw->bsnzchw", attn, v)
+        out = out.reshape(bsz, len_s, n, ch, *size)
+        return out
+
+
+class FreqVideoEncoder(nn.Module):
+    def __init__(self, in_ch, depths, widths, block_size, n, heads):
+        super().__init__()
+        self.backbone = FreqBackbone(
+            in_ch=in_ch,
+            depths=depths,
+            widths=widths,
+            block_size=block_size,
+            n=n,
+            return_freq=True,
+        )
+        attns = []
+        for i in range(len(depths)):
+            attns.append(FreqAttention(widths[i], n, heads[i]))
+        self.attns = nn.ModuleList(attns)
+
+    def forward(self, x):
+        b, t = x.shape[:2]
+        x = x.view(b * t, *x.shape[2:])
+        feats = self.backbone(x)
+        feats = [f.view(b, t, *f.shape[1:]) for f in feats]
+        feats = [f + attn(f, f) for attn, f in zip(self.attns, feats)]
+        return feats
+
+
+class FreqVideoDecoder(nn.Module):
+    def __init__(self, in_ch, depths, widths, block_size, n, heads):
+        super().__init__()
+        self.block_size = block_size
+        attns = []
+        projs = []
+        for i in reversed(range(1, len(depths))):
+            add_ch = widths[i - 1]
+            projs.append(FreqCondChannelLinear(widths[i] + add_ch, widths[i - 1], n))
+            attns.append(FreqAttention(widths[i - 1], n, heads[i - 1]))
+
+        self.attns = nn.ModuleList(attns)
+        self.projs = nn.ModuleList(projs)
+        self.fc = FreqCondChannelLinear(widths[0], in_ch, n)
+
+        self.decompress = Decompress(block_size=block_size, n=n)
+        self.from_freq = IDCT(block_size, zigzag=True)
+
+    def interpolate(self, x, size):
+        b, t, n, ch, h, w = x.shape
+        x = x.reshape(b * t * n, ch, h, w)
+        x = F.interpolate(x, size=size, mode="bilinear", align_corners=False)
+        x = x.reshape(b, t, n, ch, *size)
+        return x
+
+    def interpolate_like(self, x, y):
+        size = y.shape[-2:]
+        return self.interpolate(x, size)
+
+    def forward(self, x, feats):
+        size = x.shape[-2:]
+        bsz, t = x.shape[:2]
+        x, feats = feats[-1], feats[1::-1]
+
+        for i, feat in enumerate(feats):
+            x = self.interpolate_like(x, feat)
+            x = torch.cat([x, feat], dim=-3)
+            x = self.projs[i](x.view(bsz * t, *x.shape[2:]))
+            x = x.view(bsz, t, *x.shape[1:])
+            x = self.attns[i](x, x) + x
+
+        x = self.interpolate(
+            x, size=(size[0] // self.block_size, size[1] // self.block_size)
+        )
+        x = self.fc(x.view(bsz * t, *x.shape[2:]))
+        x = self.decompress(x)
+        x = self.from_freq(x, size=size)
+        x = x.view(bsz, t, *x.shape[1:])
         return x
