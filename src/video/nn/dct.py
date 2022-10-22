@@ -65,18 +65,18 @@ class BlockDCTSandwich(nn.Module):
         if self.zigzag:
             x = self.to_zigzag(x)
         else:
-            x = x.view(bsz, in_ch, -1, self.block_size**2)
-        return x
+            x = x.reshape(bsz, in_ch, -1, self.block_size**2)
+        return x.contiguous()
 
     def post(self, x, size):
         bsz, out_ch = x.shape[:2]
         if self.zigzag:
             x = self.from_zigzag(x)
         else:
-            x = x.view(bsz, out_ch, -1, self.block_size, self.block_size)
+            x = x.reshape(bsz, out_ch, -1, self.block_size, self.block_size)
         x = aot_block_idct(x)
         x = deblockify(x, size)
-        return x
+        return x.contiguous()
 
     def forward(self, x):
         size = x.shape[-2:]
