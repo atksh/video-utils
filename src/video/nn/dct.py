@@ -13,7 +13,7 @@ class BlockDCTSandwich(nn.Module):
         """DCT -> module -> IDCT
 
         Args:
-            module (nn.Module): Module to apply to DCT coefficients with the shape of (bsz, ch, n_blocks, block_size ** 2)
+            module (nn.Module): Module to apply to DCT coefficients with the shape of (bsz, n_blocks, ch, block_size ** 2)
             block_size (int): Size of the block to use for DCT
         """
         super().__init__()
@@ -66,22 +66,28 @@ class BlockDCTSandwich(nn.Module):
             x = self.to_zigzag(x)
         else:
             x = x.reshape(bsz, in_ch, -1, self.block_size**2)
-        return x.contiguous()
+        x = x.contiguous()  # (bsz, in_ch, n_blocks, block_size ** 2)
+        x = x.permute(0, 2, 1, 3).contiguous()
+        return x
 
     def post(self, x, size):
+        x = x.permute(0, 2, 1, 3).contiguous()
         bsz, out_ch = x.shape[:2]
         if self.zigzag:
             x = self.from_zigzag(x)
         else:
             x = x.reshape(bsz, out_ch, -1, self.block_size, self.block_size)
         x = aot_block_idct(x)
-        x = deblockify(x, size)
-        return x.contiguous()
+        x = deblockify(x, size).contiguous()
+        return x
 
     def forward(self, x):
         size = x.shape[-2:]
+        # (b, c_in, h, w) -> (b, n_blocks, c_in, block_size ** 2)
         x = self.pre(x)
+        # (b, n_blocks, c_in, block_size ** 2) -> (b, n_blocks, c_out, block_size ** 2)
         x = self.module(x)
+        # (b, n_blocks, c_out, block_size ** 2) -> (b, c_out, h, w)
         x = self.post(x, size)
         return x
 
