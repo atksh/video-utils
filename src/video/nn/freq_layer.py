@@ -322,3 +322,58 @@ def FreqCondConv2d(in_ch, out_ch, kernel_size, groups, block_size):
         return FreqCondConv2dBase(in_ch, out_ch, kernel_size, block_size)
     else:
         return GroupFreqCondConv2d(in_ch, out_ch, kernel_size, groups, block_size)
+
+
+class FreqCondLayerNorm(nn.Module):
+    def __init__(self, ch, block_size, eps=1e-5):
+        super().__init__()
+        self.block_size = block_size
+        self.eps = eps
+        self.params = DeepSpace(n=block_size**2, shape=(2, ch))
+
+    def forward(self, x):
+        # x: (b, h, w, ch, block_size**2)
+        x = x.permute(0, 1, 2, 4, 3)  # (b, h, w, block_size**2, ch)
+        n = x.shape[-2]
+        params = self.params()
+        gamma, beta = params.chunk(2, dim=1)  # (n, ch)
+        mu = x.mean(dim=-1, keepdim=True)  # (b, h, w, block_size**2, 1)
+        var = x.var(dim=-1, keepdim=True)  # (b, h, w, block_size**2, 1)
+        gamma = gamma.reshape(1, 1, 1, n, -1)
+        beta = beta.reshape(1, 1, 1, n, -1)
+        x = (x - mu) / torch.sqrt(var + self.eps)
+        x = x * gamma + beta
+        x = x.permute(0, 1, 2, 4, 3)  # (b, h, w, ch, block_size**2)
+        return x
+
+
+class FreqCondChannelLinear(nn.Module):
+    def __init__(self, in_ch, out_ch, block_size):
+        super().__init__()
+        self.block_size = block_size
+        self.params = DeepSpace(n=block_size**2, shape=(out_ch, in_ch))
+
+    def forward(self, x):
+        # x: (b, h, w, ch, block_size**2)
+        x = x.permute(0, 1, 2, 4, 3)  # (b, h, w, block_size**2, ch)
+        w = self.params()  # (n, out_ch, in_ch)
+        x = torch.einsum("bhwnc,ndc->bhwnd", x, w)  # (b, h, w, block_size**2, out_ch)
+        x = x.permute(0, 1, 2, 4, 3)  # (b, h, w, out_ch, block_size**2)
+        return x
+
+
+class FreqCondBlock(nn.Module):
+    def __init__(self, ch, block_size, kernel_size=5, expand_factor=2):
+        super().__init__()
+        self.conv = FreqCondConv2d(ch, ch, kernel_size, ch, block_size)
+        self.ln = FreqCondLayerNorm(ch, block_size)
+        self.ffn = FreqCondFFN(ch, block_size, expand_factor=expand_factor)
+
+    def forward(self, x):
+        # x: (b, h, w, ch, block_size**2)
+        resid = x
+        x = self.conv(x)
+        x = self.ln(x)
+        x = self.ffn(x)
+        x = x + resid
+        return x
