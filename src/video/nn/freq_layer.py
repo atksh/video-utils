@@ -292,7 +292,7 @@ class FreqCondConv2dBase(nn.Module):
         return x
 
 
-class groupFreqCondConv2d(nn.Module):
+class GroupFreqCondConv2d(nn.Module):
     def __init__(self, in_ch, out_ch, kernel_size, groups, block_size):
         super().__init__()
         if in_ch % groups != 0:
@@ -321,4 +321,4 @@ def FreqCondConv2d(in_ch, out_ch, kernel_size, groups, block_size):
     if groups == 1:
         return FreqCondConv2dBase(in_ch, out_ch, kernel_size, block_size)
     else:
-        return groupFreqCondConv2d(in_ch, out_ch, kernel_size, groups, block_size)
+        return GroupFreqCondConv2d(in_ch, out_ch, kernel_size, groups, block_size)
