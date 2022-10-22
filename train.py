@@ -65,11 +65,7 @@ if __name__ == "__main__":
         limit_val_batches=1.0 / skip_rate,
         limit_test_batches=1.0 / skip_rate,
         callbacks=[precision_callback, checkpoint_callback],
-        auto_scale_batch_size="binsearch",
     )
-
-    tune_dl = create_dm(["video2.mp4"])
-    trainer.tune(model, datamodule=tune_dl)
 
     train_dl = create_dm(path)
     trainer.fit(model, datamodule=train_dl)
