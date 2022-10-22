@@ -1,17 +1,12 @@
-import os
-
 import torch
 import torch.nn.functional as F
 from torch import nn
 from torchjpeg.dct import block_dct, block_idct, blockify, deblockify
 
-if os.getenv("DISABLE_FUNCTORCH", "false").lower() in ["1", "true", "yes"]:
-    memory_efficient_fusion = lambda x: x
-else:
-    from functorch.compile import memory_efficient_fusion
+from .fuse import aot_fuse
 
-aot_block_dct = memory_efficient_fusion(block_dct)
-aot_block_idct = memory_efficient_fusion(block_idct)
+aot_block_dct = aot_fuse(block_dct)
+aot_block_idct = aot_fuse(block_idct)
 
 
 class BlockDCTSandwich(nn.Module):
