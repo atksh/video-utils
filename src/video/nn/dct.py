@@ -108,6 +108,22 @@ class BlockDCTSandwich(nn.Module):
         return x
 
 
+class DCT(BlockDCTSandwich):
+    def __init__(self, block_size: int, zigzag: bool = False):
+        super().__init__(nn.Identity(), block_size, zigzag)
+
+    def forward(self, x):
+        return super().pre(x)
+
+
+class IDCT(BlockDCTSandwich):
+    def __init__(self, block_size: int, zigzag: bool = False):
+        super().__init__(nn.Identity(), block_size, zigzag)
+
+    def forward(self, x, size):
+        return super().post(x)
+
+
 class FreqConv(nn.Module):
     def __init__(self, in_ch, out_ch, window_size, groups=1):
         super().__init__()
