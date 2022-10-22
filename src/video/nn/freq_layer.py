@@ -163,8 +163,8 @@ class LinSpace(nn.Module):
         shape = tuple(shape)
         self.p1 = nn.Parameter(torch.zeros(*shape))
         self.p2 = nn.Parameter(torch.zeros(*shape))
-        nn.init.trunc_normal_(self.p1, std=0.02)
-        nn.init.trunc_normal_(self.p2, std=0.02)
+        nn.init.trunc_normal_(self.p1, std=2.0 / math.sqrt(shape[-1]))
+        nn.init.trunc_normal_(self.p2, std=2.0 / math.sqrt(shape[-1]))
 
     def soft_clip(self, x):
         if self.lb is None and self.ub is None:
@@ -415,12 +415,12 @@ class FreqLinear(nn.Module):
             self.b = nn.Parameter(torch.zeros(out_ch))
         else:
             self.b = None
-        nn.init.trunc_normal_(self.w, std=0.02)
+        nn.init.trunc_normal_(self.w, std=2.0 / math.sqrt(in_ch))
 
     def forward(self, x):
         x = x.permute(0, 2, 3, 4, 1)  # (b, ch, h, w, n)
         x = torch.matmul(x, self.w.transpose(-1, -2))
-        if self.bias is not None:
+        if self.b is not None:
             x = x + self.b.view(1, 1, 1, 1, -1)
         x = x.permute(0, 4, 1, 2, 3)  # (b, n, ch, h, w)
         return x
