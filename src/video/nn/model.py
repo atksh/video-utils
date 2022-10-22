@@ -54,19 +54,7 @@ class Decoder(nn.Module):
             nn.Conv2d(last_dim, last_dim, 3, padding=1, bias=False),
             nn.GroupNorm(1, last_dim),
             nn.SiLU(),
-            nn.Conv2d(last_dim, last_dim + 3 + 2, 3, padding=1),
-        )
-        self.from_rgb = nn.Sequential(
-            nn.Conv2d(out_dim, last_dim, 3, padding=1, bias=False),
-            nn.GroupNorm(1, last_dim),
-            nn.SiLU(),
-            nn.Conv2d(last_dim, last_dim, 3, padding=1),
-        )
-        self.to_rgb = nn.Sequential(
-            nn.Conv2d(last_dim, last_dim, 3, padding=1, bias=False),
-            nn.GroupNorm(1, last_dim),
-            nn.SiLU(),
-            nn.Conv2d(last_dim, out_dim, 3, padding=1),
+            nn.Conv2d(last_dim, out_dim, 1),
         )
 
     def resize_like(self, x, ref):
@@ -114,13 +102,5 @@ class Decoder(nn.Module):
         x = self.mlp(x)
         x = self.resize_like(x, last_video)
         # now x is (B, C, H, W)
-        x, cord = x[:, :-2], x[:, -2:]
-        x, s = x[:, :-3], x[:, -3:]
-        last_video_z = self.from_rgb(last_video)
-        ref = self.get_ref(last_video_z, cord)
-        x = torch.stack([x, ref, last_video_z], dim=-1)  # (B, C, H, W, 3)
-        s = torch.stack(s.sigmoid().chunk(3, dim=1), dim=-1)  # (B, 1, H, W, 3)
-        x = (x * s).sum(dim=-1)
-        x = self.to_rgb(x)
         x = self.soft_clip(x, 0, 1).unsqueeze(1)
         return x
