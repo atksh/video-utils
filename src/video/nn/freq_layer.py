@@ -8,6 +8,11 @@ from torch import nn
 from torch.jit import Final
 from torchjpeg.dct import block_dct, block_idct, blockify, deblockify
 
+from .fuse import aot_fuse
+
+aot_block_dct = aot_fuse(block_dct)
+aot_block_idct = aot_fuse(block_idct)
+
 
 class BlockDCTSandwich(nn.Module):
     idx: Final[List[int]]
@@ -76,7 +81,7 @@ class BlockDCTSandwich(nn.Module):
         bsz, in_ch = x.shape[:2]
         h, w = x.shape[-2:]
         x = blockify(x, self.block_size)
-        x = block_dct(x)
+        x = aot_block_dct(x)
         if self.zigzag:
             x = self.to_zigzag(x)
         else:
@@ -95,7 +100,7 @@ class BlockDCTSandwich(nn.Module):
             x = self.from_zigzag(x)
         else:
             x = x.reshape(bsz, out_ch, -1, self.block_size, self.block_size)
-        x = block_idct(x)
+        x = aot_block_idct(x)
         x = deblockify(x, size)
         return x
 
