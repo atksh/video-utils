@@ -465,7 +465,7 @@ class FreqBackbone(nn.Module):
             # freq: (bsz, block_size**2, dim, h', w')
             # non_freq: (bsz, dim, h', w')
             if return_freq:
-                feats.append(x.permute(0, 4, 3, 1, 2))
+                feats.append(x)
             else:
                 size = (h // 2 ** (i + 1), w // 2 ** (i + 1))
                 feats.append(self.from_freq(x, size=size))
