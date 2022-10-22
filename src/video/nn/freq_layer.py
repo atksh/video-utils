@@ -474,15 +474,15 @@ class FreqBackbone(nn.Module):
 
 
 class FreqHead(nn.Module):
-    def __init__(self, *, in_ch, out_ch, block_size):
+    def __init__(self, in_ch, out_ch, block_size):
         super().__init__()
         self.proj = FreqCondChannelLinear(in_ch, out_ch, block_size)
         self.freq_proj = nn.Linear(block_size**2, 1)
 
     def forward(self, x):
         # x: (b, block_size**2, ch, h', w')
-        x = x.mean(dim=[-1, -2])  # (b, block_size**2, in_ch)
-        x = self.proj(x)  # (b, block_size**2, out_ch)
+        x = x.mean(dim=[-1, -2], keepdim=True)  # (b, block_size**2, ch, 1, 1)
+        x = self.proj(x).squeeze(-1).squeeze(-1)  # (b, block_size**2, out_ch)
         x = x.transpose(1, 2)  # (b, out_ch, block_size**2)
         x = self.freq_proj(x)  # (b, out_ch, 1)
         x = x.squeeze(-1)  # (b, out_ch)
