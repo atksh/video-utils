@@ -458,7 +458,7 @@ class FreqBackbone(nn.Module):
 
         self.stages = nn.ModuleList(stages)
 
-    def forward(self, x):
+    def forward(self, x, return_freq=False):
         # x: (b, ch, h, w)
         h, w = x.shape[-2:]
         x = self.to_freq(x)
@@ -466,9 +466,13 @@ class FreqBackbone(nn.Module):
         feats = []
         for i, stage in enumerate(self.stages):
             x = stage(x)
-            size = (h // 2 ** (i + 1), w // 2 ** (i + 1))
-            feats.append(self.from_freq(x, size=size))
 
-        # x: (bsz, h', w', dim, block_size**2)
-        # feats: list of (bsz, h', w', dim)
-        return x, feats
+            # shape info
+            # freq: (bsz, block_size**2, dim, h, w)
+            # non_freq: (bsz, h', w', dim)
+            if return_freq:
+                feats.append(x.permute(0, 4, 3, 1, 2))
+            else:
+                size = (h // 2 ** (i + 1), w // 2 ** (i + 1))
+                feats.append(self.from_freq(x, size=size))
+        return feats
