@@ -411,8 +411,7 @@ class Compress(nn.Module):
         nn.init.trunc_normal_(self.w, std=0.02)
 
     def forward(self, x):
-        # x: (b, block_size ** 2, ch, h, w)
-        return torch.einsum("bnchw,dc->bndhw", x, self.w)
+        return torch.einsum("bnchw,mn->bmcdw", x, self.w)
 
 
 class Decompress(nn.Module):
@@ -422,8 +421,7 @@ class Decompress(nn.Module):
         nn.init.trunc_normal_(self.w, std=0.02)
 
     def forward(self, x):
-        # x: (b, n, ch, h, w)
-        return torch.einsum("bnchw,dc->bndhw", x, self.w)
+        return torch.einsum("bmchw,nm->bncdw", x, self.w)
 
 
 class FreqBackbone(nn.Module):
