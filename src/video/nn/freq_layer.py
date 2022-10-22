@@ -514,6 +514,8 @@ class FreqAttention(nn.Module):
     def __init__(self, ch, n, heads):
         super().__init__()
         self.heads = heads
+        self.ln_q = FreqCondLayerNorm(ch, n)
+        self.ln_kv = FreqCondLayerNorm(ch, n)
         self.proj_q = FreqCondChannelLinear(ch, ch, n)
         self.proj_k = FreqCondChannelLinear(ch, ch, n)
         self.proj_v = FreqCondChannelLinear(ch, ch, n)
@@ -530,6 +532,8 @@ class FreqAttention(nn.Module):
 
         q = q.view(bsz * len_s, *q.shape[2:])
         kv = kv.view(bsz * len_t, *kv.shape[2:])
+        q = self.ln_q(q)
+        kv = self.ln_kv(kv)
         q = self.proj_q(q)
         k = self.proj_k(kv)
         v = self.proj_v(kv)
