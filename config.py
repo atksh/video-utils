@@ -10,7 +10,7 @@ n_steps = 1
 
 
 in_dim = 3
-stem_dim = 32
+stem_dim = 8
 widths = [8, 16, 32, 64]
 depths = [3, 3, 3, 3]
 heads = [1, 2, 4, 8]
