@@ -591,12 +591,13 @@ class FreqVideoDecoder(nn.Module):
     def forward(self, x, feats):
         size = x.shape[-2:]
         bsz, t = x.shape[:2]
-        x, feats = feats[-1], feats[1::-1]
+        x, feats = feats[-1], feats[::-1][1:]
 
         for i, feat in enumerate(feats):
             x = self.interpolate_like(x, feat)
             x = torch.cat([x, feat], dim=-3)
-            x = self.projs[i](x.view(bsz * t, *x.shape[2:]))
+            x = x.view(bsz * t, *x.shape[2:])
+            x = self.projs[i](x)
             x = x.view(bsz, t, *x.shape[1:])
             x = self.attns[i](x, x) + x
 
@@ -607,4 +608,4 @@ class FreqVideoDecoder(nn.Module):
         x = self.decompress(x)
         x = self.from_freq(x, size=size)
         x = x.view(bsz, t, *x.shape[1:])
-        return x
+        return x[:, [-1]]
