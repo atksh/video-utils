@@ -510,7 +510,7 @@ class FreqHead(nn.Module):
         return x
 
 
-class FreqAttention(nn.Module):
+class _FreqAttention(nn.Module):
     def __init__(self, ch, n, heads):
         super().__init__()
         self.heads = heads
@@ -546,6 +546,10 @@ class FreqAttention(nn.Module):
         out = torch.matmul(attn, v).permute(0, -2, 1, 2, -1, 3, 4)
         out = out.reshape(bsz, len_s, n, ch, *size)
         return out
+
+
+def FreqAttention(*args, **kwargs):
+    return aot_fuse(_FreqAttention(*args, **kwargs))
 
 
 class FreqVideoEncoder(nn.Module):
