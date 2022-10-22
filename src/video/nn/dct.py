@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional, Tuple, Union
 
 import torch
 import torch.nn.functional as F
@@ -148,3 +148,87 @@ class DCTFreqConv(nn.Module):
 
     def forward(self, x):
         return self.sand(x)
+
+
+class DeepSpace(nn.Module):
+    lb: Optional[float]
+    ub: Optional[float]
+    shape: Tuple[int]
+
+    def __init__(
+        self,
+        n: int,
+        shape: Union[int, Tuple[int], List[int]],
+        lb: Optional[float] = None,
+        ub: Optional[float] = None,
+    ):
+        super().__init__()
+        self.lb = lb
+        self.ub = ub
+        if isinstance(shape, int):
+            shape = [shape]
+        self.shape = tuple(shape)
+        out_dim = np.prod(self.shape)
+
+        self.x = nn.Parameter(torch.linspace(0, 1, n), requires_grad=False)
+        dims = [max(64, out_dim // 2), max(128, out_dim), max(256, out_dim * 2)]
+        self.mlp = nn.Sequential(
+            nn.LazyLinear(dims[0]),
+            nn.SiLU(),
+            nn.Linear(dims[0], dims[1]),
+            nn.SiLU(),
+            nn.Linear(dims[1], dims[2]),
+            nn.SiLU(),
+            nn.Linear(dims[2], out_dim),
+        )
+
+    def soft_clip(self, x):
+        if self.lb is None and self.ub is None:
+            return x
+        elif self.lb is None and self.ub is not None:
+            ub = torch.tensor(self.ub, device=x.device)
+            _x = torch.clamp(x, max=ub)
+            return _x.detach() + x - x.detach()
+        elif self.lb is not None and self.ub is None:
+            lb = torch.tensor(self.lb, device=x.device)
+            _x = torch.clamp(x, min=lb)
+            return _x.detach() + x - x.detach()
+        else:
+            lb = torch.tensor(self.lb, device=x.device)
+            ub = torch.tensor(self.ub, device=x.device)
+            _x = torch.clamp(x, min=lb, max=ub)
+            return _x.detach() + x - x.detach()
+
+    def forward(self):
+        x = self.x.view(1, -1, 1)
+        xs = []
+        for i in range(4):
+            xs.append(x.pow(i + 1))
+            xs.append(torch.sin(x * (i + 1) * 3.1415))
+            xs.append(torch.cos(x * (i + 1) * 3.1415))
+        xs.append(torch.log(x + 1e-4))
+        xs.append(torch.exp(x))
+        x = torch.cat(xs, dim=-1)
+        x = x - x.mean(dim=1, keepdim=True)
+        x = x / x.std(dim=1, keepdim=True)
+        x = self.mlp(x)  # (1, n, out_dim)
+        x = self.soft_clip(x)
+        return x.view(-1, n, *self.shape)
+
+
+class PassFilter(nn.Module):
+    def __init__(self, ch: int, block_size: int):
+        super().__init__()
+        length = block_size**2
+        self.x = nn.Parameter(torch.zeros(ch, length))
+
+    def forward(self, inp):
+        # x: (b, n_blocks, ch, block_size**2)
+        assert self.x.shape[0] == inp.shape[-2]
+        assert self.x.shape[1] == inp.shape[-1]
+
+        s1 = F.softmax(self.x, dim=-1).cumsum(dim=-1)
+        s2 = torch.flip(self.x, dim=-1).softmax(dim=-1).cumsum(dim=-1).flip(dim=-1)
+        s = torch.minimum(s1, s2)  # (ch, length)
+        s = s.unsqueeze(0).unsqueeze(0)  # (1, 1, ch, length)
+        return inp * s
