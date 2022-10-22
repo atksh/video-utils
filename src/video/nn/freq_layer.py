@@ -156,7 +156,7 @@ class DeepSpace(nn.Module):
         out_dim = np.prod(self.shape)
 
         self.x = nn.Parameter(torch.linspace(0, 1, n), requires_grad=False)
-        hidden_dim = max(32, int(np.sqrt(n * out_dim)))
+        hidden_dim = max(32, int(np.sqrt(n * out_dim)) // 2)
         self.mlp = nn.Sequential(
             nn.Linear(14, hidden_dim),
             nn.SiLU(),
