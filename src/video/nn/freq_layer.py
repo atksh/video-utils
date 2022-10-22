@@ -565,7 +565,12 @@ class FreqVideoEncoder(nn.Module):
         )
         attns = []
         for i in range(len(depths)):
-            attns.append(nn.Sequential(FreqAttention(widths[i], n, heads[i]), FreqCondLayerNorm(widths[i], n))
+            attns.append(
+                nn.Sequential(
+                    FreqAttention(widths[i], n, heads[i]),
+                    FreqCondLayerNorm(widths[i], n),
+                )
+            )
         self.attns = nn.ModuleList(attns)
 
     def forward(self, x):
