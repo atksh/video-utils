@@ -1,6 +1,6 @@
 import os
 
-if os.getenv("DISABLE_FUNCTORCH", "false").lower() in ["1", "true", "yes"]:
+if os.getenv("DISABLE_FUSE", False):
     memory_efficient_fusion = lambda x: x
 else:
     from functorch.compile import memory_efficient_fusion
