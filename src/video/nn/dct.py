@@ -83,6 +83,10 @@ class BlockDCTSandwich(nn.Module):
 
     def forward(self, x):
         size = x.shape[-2:]
+        if min(*size) < self.block_size:
+            raise ValueError(
+                f"Image size must be at least {self.block_size}x{self.block_size}"
+            )
         # (b, c_in, h, w) -> (b, n_blocks, c_in, block_size ** 2)
         x = self.pre(x)
         # (b, n_blocks, c_in, block_size ** 2) -> (b, n_blocks, c_out, block_size ** 2)
