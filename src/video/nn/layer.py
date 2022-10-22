@@ -39,6 +39,7 @@ class _ReversibleSequential(nn.Module):
 
 
 def ReversibleSequential(layers, split_dim):
+    layers = [torch.jit.script(layer) for layer in layers]
     if len(layers) <= 4:
         return nn.Sequential(*layers)
     else:

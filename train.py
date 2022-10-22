@@ -1,3 +1,4 @@
+import argparse
 import glob
 import sys
 
@@ -11,9 +12,13 @@ from video.callback import SetPrecisionCallback
 from video.net import DataModule, Model
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--debug", action="store_true")
+    args = parser.parse_args()
     cache_dir = "cache"
     path = list(glob.glob("data/*.mp4"))
-    # path = ["video2.mp4"]
+    if args.debug:
+        path = ["video2.mp4"]
     print(path)
 
     max_epochs = 1000

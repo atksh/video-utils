@@ -40,9 +40,15 @@ class Decoder(nn.Module):
         for i in reversed(range(len(widths) - 1)):
             lr_dim = widths[i + 1]
             hr_dim = widths[i]
-            up_blocks.append(Layer2D(Stage(lr_dim, hr_dim, depths[i], mode="up")))
+            cat_dim = lr_dim + hr_dim
+            up_blocks.append(
+                Layer2D(nn.ConvTranspose2d(lr_dim, lr_dim, kernel_size=2, stride=2))
+            )
             refine_blocks.append(
-                VideoBlock(hr_dim, heads[i], depths[i]),
+                nn.Sequential(
+                    Layer2D(Stage(cat_dim, hr_dim, 1, mode="same")),
+                    VideoBlock(hr_dim, heads[i], depths[i]),
+                )
             )
 
         self.up_blocks = nn.ModuleList(up_blocks)
@@ -51,7 +57,7 @@ class Decoder(nn.Module):
         self.stem = nn.Conv2d(3, last_dim, 2, stride=2, bias=False)
         self.last_up = Stage(last_dim, last_dim, 1, mode="up")
         self.mlp = nn.Sequential(
-            nn.Conv2d(last_dim, last_dim, 3, padding=1, bias=False),
+            nn.Conv2d(last_dim * 2, last_dim, 3, padding=1, bias=False),
             nn.GroupNorm(1, last_dim),
             nn.SiLU(),
             nn.Conv2d(last_dim, out_dim, 1),
@@ -91,13 +97,15 @@ class Decoder(nn.Module):
             self.up_blocks, self.refine_blocks, reversed(feats[:-1])
         ):
             x = up_block(x)
-            x = self.resize_like(x, feat) + feat
+            x = self.resize_like(x, feat)
+            x = torch.cat([x, feat], dim=2)
             x = refine_block(x)
         x = x[:, -1].contiguous()
         # now x is (B, C, H // 4, W // 4)
         z = self.stem(last_video)
         x = self.last_up(x)
-        x = self.resize_like(x, z) + z
+        x = self.resize_like(x, z)
+        x = torch.cat([x, z], dim=1)
         # now x is (B, C, H // 2, W // 2)
         x = self.mlp(x)
         x = self.resize_like(x, last_video)
