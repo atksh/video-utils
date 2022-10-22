@@ -225,7 +225,6 @@ class FreqCondFFN(nn.Module):
 
     def get_weights(self):
         w1, w2, w3 = self.params().unbind(dim=1)
-        w3 = w3.transpose(-1, -2)
         return w1, w2, w3
 
     def forward(self, x):
@@ -234,7 +233,7 @@ class FreqCondFFN(nn.Module):
         x1 = torch.einsum("blchw,ldc->blhwd", x, w1)
         x2 = torch.einsum("blchw,ldc->blhwd", x, w2)
         x = x1 * F.silu(x2)
-        x = torch.einsum("blhwc,ldc->bldhw", x, w3)
+        x = torch.einsum("blhwc,lcd->bldhw", x, w3)
         return x
 
 
@@ -459,7 +458,6 @@ class FreqBackbone(nn.Module):
                 FreqCondStage(in_ch=in_width, out_ch=out_width, depth=depth, n=n)
             )
 
-        stages = [aot_fuse(stage) for stage in stages]
         self.stages = nn.ModuleList(stages)
         if not self.return_freq:
             self.decompress = Decompress(block_size=block_size, n=n)
