@@ -155,7 +155,7 @@ class DeepSpace(nn.Module):
         self.shape = tuple(shape)
         out_dim = np.prod(self.shape)
 
-        self.x = nn.Parameter(torch.linspace(0, 1, n), requires_grad=False)
+        self._x = torch.linspace(0, 1, n).tolist()
         hidden_dim = max(32, int(np.sqrt(n * out_dim)) // 2)
         self.mlp = nn.Sequential(
             nn.Linear(14, hidden_dim),
@@ -163,6 +163,10 @@ class DeepSpace(nn.Module):
             nn.Dropout(p=0.1),
             nn.Linear(hidden_dim, out_dim),
         )
+
+    @property
+    def x(self):
+        return torch.tensor(self._x, device=self.mlp[0].weight.device)
 
     def soft_clip(self, x):
         if self.lb is None and self.ub is None:
@@ -303,18 +307,20 @@ class GroupFreqCondConv2d(nn.Module):
         for _ in range(groups):
             convs.append(
                 FreqCondConv2dBase(
-                    in_ch, out_ch, kernel_size, stride, padding, block_size
+                    in_ch // groups,
+                    out_ch // groups,
+                    kernel_size,
+                    stride,
+                    padding,
+                    block_size,
                 )
             )
         self.convs = nn.ModuleList(convs)
 
     def forward(self, x):
         # x: (b, block_size**2, ch, h, w)
-        x = torch.split(
-            x, self.groups, dim=-2
-        )  # (b, block_size**2, ch // groups, h, w)
-        x = [conv(x_) for x_, conv in zip(x, self.convs)]
-        x = torch.cat(x, dim=-2)
+        x = [conv(x[:, :, [i]]) for i, conv in enumerate(self.convs)]
+        x = torch.cat(x, dim=2)
         return x
 
 
