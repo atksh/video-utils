@@ -1,5 +1,6 @@
 import revlib
 import torch
+from functorch.compile import memory_efficient_fusion
 from torch import nn
 from torch.nn import functional as F
 from torchvision.ops import StochasticDepth
@@ -39,7 +40,7 @@ class _ReversibleSequential(nn.Module):
 
 
 def ReversibleSequential(layers, split_dim):
-    layers = [torch.jit.script(layer) for layer in layers]
+    layers = [memory_efficient_fusion(layer) for layer in layers]
     if len(layers) <= 4:
         return nn.Sequential(*layers)
     else:
