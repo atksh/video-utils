@@ -253,7 +253,7 @@ class FreqCondFFN(nn.Module):
         return x
 
 
-class FreqConvConv2dBase(nn.Module):
+class FreqCondConv2dBase(nn.Module):
     def __init__(self, in_ch, out_ch, kernel_size, block_size):
         super().__init__()
         self.block_size = block_size
@@ -292,7 +292,7 @@ class FreqConvConv2dBase(nn.Module):
         return x
 
 
-class FreqCondConv2d(nn.Module):
+class groupFreqCondConv2d(nn.Module):
     def __init__(self, in_ch, out_ch, kernel_size, groups, block_size):
         super().__init__()
         if in_ch % groups != 0:
@@ -304,7 +304,7 @@ class FreqCondConv2d(nn.Module):
 
         convs = []
         for _ in range(groups):
-            convs.append(FreqConvConv2dBase(in_ch, out_ch, kernel_size, block_size))
+            convs.append(FreqCondConv2dBase(in_ch, out_ch, kernel_size, block_size))
         self.convs = nn.ModuleList(convs)
 
     def forward(self, x):
@@ -315,3 +315,10 @@ class FreqCondConv2d(nn.Module):
         x = [conv(x_) for x_, conv in zip(x, self.convs)]
         x = torch.cat(x, dim=-2)  # (b, h, w, ch, block_size**2)
         return x
+
+
+def FreqCondConv2d(in_ch, out_ch, kernel_size, groups, block_size):
+    if groups == 1:
+        return FreqCondConv2dBase(in_ch, out_ch, kernel_size, block_size)
+    else:
+        return groupFreqCondConv2d(in_ch, out_ch, kernel_size, groups, block_size)
