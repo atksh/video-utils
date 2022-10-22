@@ -1,6 +1,9 @@
+from typing import List
+
 import torch
 import torch.nn.functional as F
 from torch import nn
+from torch.jit import Final
 from torchjpeg.dct import block_dct, block_idct, blockify, deblockify
 
 from .fuse import aot_fuse
@@ -10,6 +13,11 @@ aot_block_idct = aot_fuse(block_idct)
 
 
 class BlockDCTSandwich(nn.Module):
+    idx: Final[List[int]]
+    inv_idx: Final[List[int]]
+    block_size: Final[int]
+    zigzag: Final[bool]
+
     def __init__(self, module: nn.Module, block_size: int, zigzag: bool = False):
         """DCT -> module -> IDCT
 
@@ -22,9 +30,10 @@ class BlockDCTSandwich(nn.Module):
         self.block_size = block_size
         self.zigzag = zigzag
         if self.zigzag:
-            idx, inv_idx = self.build_idx()
-            self.idx = nn.Parameter(idx, requires_grad=False)
-            self.inv_idx = nn.Parameter(inv_idx, requires_grad=False)
+            self.idx, self.inv_idx = self.build_idx()
+        else:
+            self.idx = list(range(self.block_size**2))
+            self.inv_idx = list(range(self.block_size**2))
 
     def build_idx(self):
         b = self.block_size
@@ -44,18 +53,18 @@ class BlockDCTSandwich(nn.Module):
         out = torch.tensor(out).view(b, b, 2)
         out = torch.arange(b) * out[..., 0] + out[..., 1]
         inv_out = torch.argsort(out)
-        return out, inv_out
+        return out.to_list(), inv_out.to_list()
 
     def to_zigzag(self, x):
         bsz, ch, n = x.shape[:3]
         x = x.view(bsz, ch, n, self.block_size**2)
-        idx = self.idx.expand_as(x)
+        idx = torch.LongTensor(self.idx, device=x.device).expand_as(x)
         return x.gather(-1, idx).contiguous()
 
     def from_zigzag(self, x):
         bsz, ch, n = x.shape[:3]
         x = x.view(bsz, ch, n, self.block_size**2)
-        inv_idx = self.inv_idx.expand_as(x)
+        inv_idx = torch.LongTensor(self.inv_idx, device=x.device).expand_as(x)
         x = x.gather(-1, inv_idx).contiguous()
         return x.view(bsz, ch, n, self.block_size, self.block_size)
 
@@ -106,12 +115,12 @@ class FreqConv(nn.Module):
         self.conv = nn.Conv1d(in_ch, out_ch, window_size, padding=0, groups=groups)
 
     def forward(self, x):
-        bsz, ch, n, dim = x.shape
-        x = x.permute(0, 2, 1, 3).reshape(bsz * n, ch, dim)
+        bsz, n, ch, dim = x.shape
+        x = x.view(bsz * n, ch, dim)
         x = F.pad(x, (0, self.padding))
         x = self.conv(x)
         x = x.view(bsz, n, -1, x.shape[-1])
-        x = x.permute(0, 2, 1, 3).contiguous()
+        x = x.contiguous()
         return x
 
 
