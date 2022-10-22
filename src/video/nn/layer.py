@@ -40,7 +40,7 @@ class _ReversibleSequential(nn.Module):
 
 
 class Sequential(nn.Module):
-    def __init__(self, *layers):
+    def __init__(self, layers):
         super().__init__()
         self.layers = nn.ModuleList(layers)
 
@@ -52,7 +52,7 @@ class Sequential(nn.Module):
 
 def ReversibleSequential(layers, split_dim):
     if len(layers) <= 4:
-        return memory_efficient_fusion(Sequential(*layers))
+        return memory_efficient_fusion(Sequential(layers))
     else:
         layers = [memory_efficient_fusion(layer) for layer in layers]
         return _ReversibleSequential(layers, split_dim)
