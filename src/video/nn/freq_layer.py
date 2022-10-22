@@ -474,7 +474,7 @@ class FreqBackbone(nn.Module):
 
 
 class FreqHead(nn.Module):
-    def __init__(self, in_ch, out_ch, block_size):
+    def __init__(self, *, in_ch=32, out_ch=1, block_size=8):
         super().__init__()
         self.proj = FreqCondChannelLinear(in_ch, out_ch, block_size)
         self.freq_proj = nn.Linear(block_size**2, 1)
