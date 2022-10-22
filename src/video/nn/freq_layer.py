@@ -430,7 +430,7 @@ class FreqCondStage(nn.Module):
 
 class FreqBackbone(nn.Module):
     def __init__(
-        self, *, in_ch=3, depths=[1, 1, 1, 1], widths=[8, 16, 32, 64], block_size=8
+        self, *, in_ch=3, depths=[1, 1, 1, 1], widths=[8, 16, 24, 32], block_size=8
     ):
         super().__init__()
         self.to_freq = DCT(block_size, zigzag=True)
@@ -468,4 +468,7 @@ class FreqBackbone(nn.Module):
             x = stage(x)
             size = (h // 2 ** (i + 1), w // 2 ** (i + 1))
             feats.append(self.from_freq(x, size=size))
-        return feats
+
+        # x: (bsz, h', w', dim, block_size**2)
+        # feats: list of (bsz, h', w', dim)
+        return x, feats
