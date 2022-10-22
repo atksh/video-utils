@@ -25,7 +25,7 @@ class BlockDCTSandwich(nn.Module):
         """DCT -> module -> IDCT
 
         Args:
-            module (nn.Module): Module to apply to DCT coefficients with the shape of (bsz, h', w', ch, block_size ** 2)
+            module (nn.Module): Module to apply to DCT coefficients with the shape of (bsz, block_size**2, ch, h', w')
             block_size (int): Size of the block to use for DCT
         """
         super().__init__()
@@ -90,12 +90,13 @@ class BlockDCTSandwich(nn.Module):
         x = x.permute(0, 2, 1, 3)  # (bsz, n_blocks, in_ch, block_size ** 2)
         out_h, out_w = self.out_size(h, w)
         x = x.reshape(bsz, out_h, out_w, in_ch, self.block_size**2)
+        x = x.permute(0, 4, 3, 1, 2)
         return x
 
     def post(self, x, size):
-        bsz, out_h, out_w, out_ch, _ = x.shape
-        x = x.view(bsz, out_h * out_w, out_ch, self.block_size**2)
-        x = x.permute(0, 2, 1, 3)
+        bsz, _, out_ch, out_h, out_w = x.shape
+        x = x.view(bsz, -1, out_ch, out_h * out_w)
+        x = x.permute(0, 2, 3, 1)
         if self.zigzag:
             x = self.from_zigzag(x)
         else:
@@ -112,11 +113,8 @@ class BlockDCTSandwich(nn.Module):
                 f"{self.block_size}x{self.block_size}"
                 f" but got {size[0]}x{size[1]}"
             )
-        # (b, c_in, h, w) -> (b, h', w', c_in, block_size ** 2)
         x = self.pre(x)
-        # (b, h', w', c_in, block_size ** 2) -> (b, h', w', c_out, block_size ** 2)
         x = self.module(x)
-        # (b, h', w', c_out, block_size ** 2) -> (b, c_out, h, w)
         x = self.post(x, size)
         return x
 
@@ -203,7 +201,7 @@ class FreqPassFilter(nn.Module):
     def __init__(self, ch: int, block_size: int):
         super().__init__()
         length = block_size**2
-        self.x = nn.Parameter(torch.zeros(ch, length))
+        self.x = nn.Parameter(torch.zeros(length, ch))
 
     def reverse_order(self, x, dim: int):
         idx = torch.arange(x.shape[dim] - 1, -1, -1, device=x.device)
@@ -217,11 +215,9 @@ class FreqPassFilter(nn.Module):
         return s
 
     def forward(self, inp):
-        # x: (b, h', w', ch, block_size**2)
-        assert self.x.shape[0] == inp.shape[-2]
-        assert self.x.shape[1] == inp.shape[-1]
+        # x: (b, block_size**2, ch, h, w)
         s = self.get_filter()
-        s = s[None, None, None, :, :]  # (1, 1, 1, ch, length)
+        s = s[None, :, :, None, None]
         return inp * s
 
 
@@ -232,7 +228,7 @@ class FreqCondFFN(nn.Module):
         super().__init__()
         shape = (3, dim * expand_factor, dim)
         self.params = DeepSpace(n=block_size**2, shape=shape)
-        self.einsum = Einsum("bnlc,ldc->bnld")
+        self.einsum = Einsum("blhwc,ldc->blhwd")
 
     def get_weights(self):
         w1, w2, w3 = self.params().unbind(dim=1)
@@ -240,18 +236,15 @@ class FreqCondFFN(nn.Module):
         return w1, w2, w3
 
     def forward(self, x):
-        out_h = x.shape[1]
-        out_w = x.shape[2]
-        x = x.view(x.shape[0], out_h * out_w, *x.shape[3:])
-        # x: (b, n_blocks, ch, block_size**2)
-        x = x.permute(0, 1, 3, 2)  # (b, n_blocks, block_size**2, ch)
+        # x: (b, block_size**2, ch, h, w)
+        # to last channel
+        x = x.permute(0, 1, 3, 4, 2)
         w1, w2, w3 = self.get_weights()  # (block_size**2, dim * expand_factor, dim)
         x1 = self.einsum(x, w1)
         x2 = self.einsum(x, w2)
         x = x1 * F.silu(x2)
         x = self.einsum(x, w3)
-        x = x.permute(0, 1, 3, 2)  # (b, n_blocks, ch, block_size**2)
-        x = x.reshape(x.shape[0], out_h, out_w, -1, x.shape[-1])
+        x = x.permute(0, 1, 4, 2, 3)
         return x
 
 
@@ -266,10 +259,9 @@ class FreqCondConv2dBase(nn.Module):
         self.params = DeepSpace(n=block_size**2, shape=shape)
 
     def im2col(self, x):
-        # x: (b, h, w, ch, block_size**2)
-        bsz, h, w, ch, n = x.shape
-        x = x.permute(0, 4, 3, 1, 2)  # (b, n, ch, h, w)
-        x = x.reshape(bsz * n, ch, h, w)  # (b * n, ch, h, w)
+        # x: (b, block_size**2, ch, h, w)
+        bsz, n, ch, h, w = x.shape
+        x = x.reshape(-1, ch, h, w)  # (b * n, ch, h, w)
         x = F.unfold(x, self.kernel_size, padding=self.padding, stride=self.stride)
         # (b * n, ch * kernel_size**2, L)
         return x.view(bsz, n, *x.shape[1:])
@@ -281,18 +273,17 @@ class FreqCondConv2dBase(nn.Module):
         out_h = (h + 2 * self.padding - self.kernel_size) // self.stride + 1
         out_w = (w + 2 * self.padding - self.kernel_size) // self.stride + 1
         x = x.view(bsz, n, -1, out_h, out_w)
-        x = x.permute(0, 3, 4, 2, 1)  # (b, h, w, ch, n)
         return x
 
     def forward(self, x):
-        # x: (b, h, w, ch, block_size**2)
-        size = x.shape[1:3]
+        # x: (b, block_size**2, ch, h, w)
+        size = x.shape[-2:]
         x = self.im2col(x)  # (b, n, ch * kernel_size**2, L)
         w = self.params()  # (n, out_ch, in_ch * kernel_size**2)
         x = x.permute(0, 1, 3, 2)  # (b, n, L, ch * kernel_size**2)
         x = torch.einsum("bnlc,ndc->bnld", x, w)  # (b, n, L, out_ch)
         x = x.permute(0, 1, 3, 2)  # (b, n, out_ch, L)
-        x = self.col2im(x.contiguous(), size)  # (b, h, w, out_ch, n)
+        x = self.col2im(x.contiguous(), size)
         return x
 
 
@@ -317,12 +308,12 @@ class GroupFreqCondConv2d(nn.Module):
         self.convs = nn.ModuleList(convs)
 
     def forward(self, x):
-        # x: (b, h, w, ch, block_size**2)
+        # x: (b, block_size**2, ch, h, w)
         x = torch.split(
             x, self.groups, dim=-2
-        )  # (b, h, w, ch // groups, block_size**2)
+        )  # (b, block_size**2, ch // groups, h, w)
         x = [conv(x_) for x_, conv in zip(x, self.convs)]
-        x = torch.cat(x, dim=-2)  # (b, h, w, ch, block_size**2)
+        x = torch.cat(x, dim=-2)
         return x
 
 
@@ -345,18 +336,22 @@ class FreqCondLayerNorm(nn.Module):
         self.params = DeepSpace(n=block_size**2, shape=(2, ch))
 
     def forward(self, x):
-        # x: (b, h, w, ch, block_size**2)
-        x = x.permute(0, 1, 2, 4, 3)  # (b, h, w, block_size**2, ch)
-        n = x.shape[-2]
+        # x: (b, block_size**2, ch, h, w)
+        # to last channel
+        x = x.permute(0, 1, 3, 4, 2)  # (b, block_size**2, h, w, ch)
+        n = x.shape[1]
+
         params = self.params()
         gamma, beta = params.chunk(2, dim=1)  # (n, ch)
-        mu = x.mean(dim=-1, keepdim=True)  # (b, h, w, block_size**2, 1)
-        var = x.var(dim=-1, keepdim=True)  # (b, h, w, block_size**2, 1)
-        gamma = gamma.reshape(1, 1, 1, n, -1)
-        beta = beta.reshape(1, 1, 1, n, -1)
+
+        mu = x.mean(dim=-1, keepdim=True)
+        var = x.var(dim=-1, keepdim=True)
+        gamma = gamma.reshape(1, n, 1, 1, -1)
+        beta = beta.reshape(1, n, 1, 1, -1)
+
         x = (x - mu) / torch.sqrt(var + self.eps)
         x = x * gamma + beta
-        x = x.permute(0, 1, 2, 4, 3)  # (b, h, w, ch, block_size**2)
+        x = x.permute(0, 1, 4, 2, 3)  # (b, block_size**2, ch, h, w)
         return x
 
 
@@ -367,11 +362,12 @@ class FreqCondChannelLinear(nn.Module):
         self.params = DeepSpace(n=block_size**2, shape=(out_ch, in_ch))
 
     def forward(self, x):
-        # x: (b, h, w, ch, block_size**2)
-        x = x.permute(0, 1, 2, 4, 3)  # (b, h, w, block_size**2, ch)
+        # x: (b, block_size**2, ch, h, w)
+        # to last channel
+        x = x.permute(0, 1, 3, 4, 2)  # (b, block_size**2, h, w, ch)
         w = self.params()  # (n, out_ch, in_ch)
-        x = torch.einsum("bhwnc,ndc->bhwnd", x, w)  # (b, h, w, block_size**2, out_ch)
-        x = x.permute(0, 1, 2, 4, 3)  # (b, h, w, out_ch, block_size**2)
+        x = torch.einsum("bnhwc,ndc->bnhwd", x, w)
+        x = x.permute(0, 1, 4, 2, 3)  # (b, block_size**2, out_ch, h, w)
         return x
 
 
@@ -392,7 +388,6 @@ class FreqCondBlock(nn.Module):
         self.ffn = FreqCondFFN(ch, block_size, expand_factor=expand_factor)
 
     def forward(self, x):
-        # x: (b, h, w, ch, block_size**2)
         x = self.conv(x)
         x = self.filter(x)
         x = self.ln(x)
@@ -420,7 +415,6 @@ class FreqCondStage(nn.Module):
         self.ln = FreqCondLayerNorm(out_ch, block_size)
 
     def forward(self, x):
-        # x: (b, h, w, ch, block_size**2)
         for block in self.blocks:
             x = x + block(x)
         x = self.downsample(x)
@@ -468,8 +462,8 @@ class FreqBackbone(nn.Module):
             x = stage(x)
 
             # shape info
-            # freq: (bsz, block_size**2, dim, h, w)
-            # non_freq: (bsz, h', w', dim)
+            # freq: (bsz, block_size**2, dim, h', w')
+            # non_freq: (bsz, dim, h', w')
             if return_freq:
                 feats.append(x.permute(0, 4, 3, 1, 2))
             else:
