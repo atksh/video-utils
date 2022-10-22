@@ -7,7 +7,7 @@ from .ckpt import ckpt_forward
 
 
 class BlockDCTSandwich(nn.Module):
-    def __init__(self, module: nn.Module, block_size: int):
+    def __init__(self, module: nn.Module, block_size: int, zigzag: bool = False):
         """DCT -> module -> IDCT
 
         Args:
@@ -17,7 +17,11 @@ class BlockDCTSandwich(nn.Module):
         super().__init__()
         self.module = module
         self.block_size = block_size
-        self.idx = nn.Parameter(self.build_idx(), requires_grad=False)
+        self.zigzag = zigzag
+        if self.zigzag:
+            idx, inv_idx = self.build_idx()
+            self.idx = nn.Parameter(idx, requires_grad=False)
+            self.inv_idx = nn.Parameter(inv_idx, requires_grad=False)
 
     def build_idx(self):
         b = self.block_size
@@ -36,22 +40,36 @@ class BlockDCTSandwich(nn.Module):
         out = list(sorted(out, key=to_key))
         out = torch.tensor(out).view(b, b, 2)
         out = torch.arange(b) * out[..., 0] + out[..., 1]
-        return out.view(1, 1, 1, -1)
+        inv_out = torch.argsort(out)
+        return out, inv_out
+
+    def to_zigzag(self, x):
+        bsz, ch, n = x.shape[:3]
+        x = x.view(bsz, ch, n, self.block_size**2)
+        idx = self.idx.expand_as(x)
+        return x.gather(-1, idx).contiguous()
+
+    def from_zigzag(self, x):
+        bsz, ch, n = x.shape[:3]
+        x = x.view(bsz, ch, n, self.block_size**2)
+        inv_idx = self.inv_idx.expand_as(x)
+        x = x.gather(-1, inv_idx).contiguous()
+        return x.view(bsz, ch, n, self.block_size, self.block_size)
 
     @ckpt_forward
     def forward(self, x):
-        # nchw->nclb^2 where b = block_size
-        bsz, ch, *size = x.shape
+        bsz, in_ch, *size = x.shape
         x = blockify(x, self.block_size)
         x = block_dct(x)
-        x = x.reshape(bsz, ch, -1, self.block_size**2)
-        idx = self.idx.expand_as(x)
-        x = x.gather(-1, idx).contiguous()
+        if self.zigzag:
+            x = self.to_zigzag(x)
+        else:
+            x = x.view(bsz, in_ch, -1, self.block_size**2)
         x = self.module(x)
-        # nclb^2->nchw
-        assert x.shape[-1] == self.block_size**2
-        ch = x.shape[1]
-        x = x.view(bsz, ch, -1, self.block_size, self.block_size)
+        if self.zigzag:
+            x = self.from_zigzag(x)
+        else:
+            x = x.view(bsz, in_ch, -1, self.block_size, self.block_size)
         x = block_idct(x)
         x = deblockify(x, size)
         return x
