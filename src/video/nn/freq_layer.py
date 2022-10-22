@@ -480,7 +480,6 @@ class FreqBackbone(nn.Module):
                 FreqCondStage(in_ch=in_width, out_ch=out_width, depth=depth, n=n)
             )
 
-        stages = list(map(aot_fuse, stages))
         self.stages = nn.ModuleList(stages)
         if not self.return_freq:
             self.decompress = Decompress(block_size=block_size, n=n)
@@ -612,7 +611,6 @@ class FreqVideoEncoder(nn.Module):
                     *[FreqTransformer(widths[i], n, heads[i]) for _ in range(depths[i])]
                 )
             )
-        trns = list(map(aot_fuse, trns))
         self.trns = nn.ModuleList(trns)
 
     def forward(self, x):
@@ -642,8 +640,6 @@ class FreqVideoDecoder(nn.Module):
                 )
             )
 
-        trns = list(map(aot_fuse, trns))
-        projs = list(map(aot_fuse, projs))
         self.trns = nn.ModuleList(trns)
         self.projs = nn.ModuleList(projs)
         self.fc = FreqCondChannelLinear(widths[0], in_ch, n)
