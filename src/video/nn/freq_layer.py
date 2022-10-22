@@ -408,25 +408,32 @@ class FreqCondStage(nn.Module):
 
 
 class FreqLinear(nn.Module):
-    def __init__(self, in_ch, out_ch):
+    def __init__(self, in_ch, out_ch, bias=True):
         super().__init__()
         self.w = nn.Parameter(torch.zeros((out_ch, in_ch)))
+        if bias:
+            self.b = nn.Parameter(torch.zeros(out_ch))
+        else:
+            self.b = None
         nn.init.trunc_normal_(self.w, std=0.02)
 
     def forward(self, x):
         x = x.permute(0, 2, 3, 4, 1)  # (b, ch, h, w, n)
         x = torch.matmul(x, self.w.transpose(-1, -2))
+        if self.bias is not None:
+            x = x + self.b.view(1, 1, 1, 1, -1)
         x = x.permute(0, 4, 1, 2, 3)  # (b, n, ch, h, w)
         return x
 
 
 def FreqMLP(in_ch, out_ch):
+    hidden_dim = max(in_ch, out_ch) * 3
     return nn.Sequential(
-        FreqLinear(in_ch, in_ch),
+        FreqLinear(in_ch, hidden_dim),
         nn.SiLU(),
-        FreqLinear(in_ch, in_ch),
+        FreqLinear(hidden_dim, hidden_dim),
         nn.SiLU(),
-        FreqLinear(in_ch, out_ch),
+        FreqLinear(hidden_dim, out_ch),
     )
 
 
