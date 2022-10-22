@@ -211,10 +211,8 @@ class FreqPassFilter(nn.Module):
 
     def get_filter(self):
         s1 = F.softmax(self.x, dim=-1).cumsum(dim=-1)
-        s2 = self.reverse_order(
-            self.reverse_order(self.x, dim=-1).softmax(dim=-1).cumsum(dim=-1)
-        )
-        s = torch.minimum(s1, s2)  # (ch, length)
+        s2 = self.reverse_order(self.x, dim=-1).softmax(dim=-1).cumsum(dim=-1)
+        s = torch.minimum(s1, self.reverse_order(s2, dim=-1))  # (ch, length)
         s = s / s.sum(dim=-1, keepdim=True)  # normalize
         return s
 
@@ -237,8 +235,8 @@ class FreqCondFFN(nn.Module):
         self.einsum = Einsum("bnlc,ldc->bnld")
 
     def get_weights(self):
-        w1, w2, w3 = self.params().unbind(dim=0)
-        w3 = w3.view(w3.shape[1], -1)
+        w1, w2, w3 = self.params().unbind(dim=1)
+        w3 = w3.transpose(-1, -2)
         return w1, w2, w3
 
     def forward(self, x):
@@ -279,7 +277,10 @@ class FreqCondConv2dBase(nn.Module):
     def col2im(self, x, size):
         # x: (b, n, ch, L) where L = h * w
         bsz, n = x.shape[:2]
-        x = x.view(bsz, n, -1, *size)
+        h, w = size
+        out_h = (h + 2 * self.padding - self.kernel_size) // self.stride + 1
+        out_w = (w + 2 * self.padding - self.kernel_size) // self.stride + 1
+        x = x.view(bsz, n, -1, out_h, out_w)
         x = x.permute(0, 3, 4, 2, 1)  # (b, h, w, ch, n)
         return x
 
@@ -291,7 +292,7 @@ class FreqCondConv2dBase(nn.Module):
         x = x.permute(0, 1, 3, 2)  # (b, n, L, ch * kernel_size**2)
         x = torch.einsum("bnlc,ndc->bnld", x, w)  # (b, n, L, out_ch)
         x = x.permute(0, 1, 3, 2)  # (b, n, out_ch, L)
-        x = self.col2im(x, size)  # (b, h, w, out_ch, n)
+        x = self.col2im(x.contiguous(), size)  # (b, h, w, out_ch, n)
         return x
 
 
