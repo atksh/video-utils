@@ -1,12 +1,11 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from functorch.compile import memory_efficient_fusion
 
 from .layer import VideoToImage
 
 
-class _MSSSIML1Loss(nn.Module):
+class MSSSIML1Loss(nn.Module):
     def __init__(
         self,
         gaussian_sigmas=[0.5, 1.0, 2.0, 4.0, 8.0],
@@ -93,7 +92,3 @@ class _MSSSIML1Loss(nn.Module):
         loss_mix = self.alpha * loss_ms_ssim + (1 - self.alpha) * gaussian_l1 / self.DR
 
         return loss_mix.mean()
-
-
-def MSSSIML1Loss(*args, **kwargs):
-    return memory_efficient_fusion(_MSSSIML1Loss(*args, **kwargs))
