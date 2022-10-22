@@ -261,7 +261,7 @@ class FreqCondConv2dBase(nn.Module):
         h, w = size
         out_h = (h + 2 * self.padding - self.kernel_size) // self.stride + 1
         out_w = (w + 2 * self.padding - self.kernel_size) // self.stride + 1
-        x = x.view(bsz, n, -1, out_h, out_w)
+        x = x.reshape(bsz, n, -1, out_h, out_w)
         return x
 
     def forward(self, x):
@@ -272,7 +272,7 @@ class FreqCondConv2dBase(nn.Module):
         x = x.permute(0, 1, 3, 2)  # (b, n, L, ch * kernel_size**2)
         x = torch.einsum("bnlc,ndc->bnld", x, w)  # (b, n, L, out_ch)
         x = x.permute(0, 1, 3, 2)  # (b, n, out_ch, L)
-        x = self.col2im(x.contiguous(), size)
+        x = self.col2im(x, size)
         return x
 
 
