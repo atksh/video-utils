@@ -231,12 +231,9 @@ class FreqCondFFN(nn.Module):
         # x: (b, n, ch, h, w)
         w1, w2, w3 = self.get_weights()  # (n, dim * expand_factor, dim)
         x = x.permute(0, 1, 3, 4, 2)  # (b, n, h, w, ch)
-        # x1 = torch.einsum("blhwc,ldc->blhwd", x, w1)
-        # x2 = torch.einsum("blhwc,ldc->blhwd", x, w2)
         x1 = torch.matmul(x, w1.unsqueeze(1).transpose(-1, -2))
         x2 = torch.matmul(x, w2.unsqueeze(1).transpose(-1, -2))
         x = x1 * F.silu(x2)
-        # x = torch.einsum("blhwc,lcd->blhwd", x, w3)
         x = torch.matmul(x, w3.unsqueeze(1))
         x = x.permute(0, 1, 4, 2, 3)  # (b, n, ch, h, w)
         return x
@@ -275,7 +272,6 @@ class FreqCondConv2dBase(nn.Module):
         x = self.im2col(x)  # (b, n, ch * kernel_size**2, L)
         w = self.params()  # (n, out_ch, in_ch * kernel_size**2)
         x = x.permute(0, 1, 3, 2)  # (b, n, L, ch * kernel_size**2)
-        # x = torch.einsum("bnlc,ndc->bnld", x, w)  # (b, n, L, out_ch)
         x = torch.matmul(x, w.transpose(-1, -2))
         x = x.permute(0, 1, 3, 2)  # (b, n, out_ch, L)
         x = self.col2im(x, size)
@@ -355,7 +351,6 @@ class FreqCondChannelLinear(nn.Module):
         # x: (b, n, ch, h, w)
         w = self.params()  # (n, out_ch, in_ch)
         x = x.permute(0, 1, 3, 4, 2)  # (b, n, h, w, ch)
-        # x = torch.einsum("bnhwc,ndc->bnhwd", x, w)
         x = torch.matmul(x, w.unsqueeze(1).transpose(-1, -2))
         x = x.permute(0, 1, 4, 2, 3)  # (b, n, out_ch, h, w)
         return x
