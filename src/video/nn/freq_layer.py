@@ -13,6 +13,14 @@ aot_block_dct = aot_fuse(block_dct)
 aot_block_idct = aot_fuse(block_idct)
 
 
+def dct(x):
+    return aot_block_dct(x)
+
+
+def idct(x):
+    return aot_block_idct(x)
+
+
 class BlockDCTSandwich(nn.Module):
     idx: Final[List[int]]
     inv_idx: Final[List[int]]
@@ -80,7 +88,7 @@ class BlockDCTSandwich(nn.Module):
         bsz, in_ch = x.shape[:2]
         h, w = x.shape[-2:]
         x = blockify(x, self.block_size)
-        x = aot_block_dct(x)
+        x = dct(x)
         if self.zigzag:
             x = self.to_zigzag(x)
         else:
@@ -99,7 +107,7 @@ class BlockDCTSandwich(nn.Module):
             x = self.from_zigzag(x)
         else:
             x = x.reshape(bsz, out_ch, -1, self.block_size, self.block_size)
-        x = aot_block_idct(x)
+        x = idct(x)
         x = deblockify(x, size)
         return x
 
@@ -222,14 +230,11 @@ class FreqCondFFN(nn.Module):
 
     def forward(self, x):
         # x: (b, n, ch, h, w)
-        # to last channel
-        x = x.permute(0, 1, 3, 4, 2)
         w1, w2, w3 = self.get_weights()  # (n, dim * expand_factor, dim)
-        x1 = torch.einsum("blhwc,ldc->blhwd", x, w1)
-        x2 = torch.einsum("blhwc,ldc->blhwd", x, w2)
+        x1 = torch.einsum("blchw,ldc->blhwd", x, w1)
+        x2 = torch.einsum("blchw,ldc->blhwd", x, w2)
         x = x1 * F.silu(x2)
-        x = torch.einsum("blhwc,ldc->blhwd", x, w3)
-        x = x.permute(0, 1, 4, 2, 3)
+        x = torch.einsum("blhwc,ldc->bldhw", x, w3)
         return x
 
 
@@ -321,21 +326,18 @@ class FreqCondLayerNorm(nn.Module):
 
     def forward(self, x):
         # x: (b, n, ch, h, w)
-        # to last channel
-        x = x.permute(0, 1, 3, 4, 2)  # (b, n, h, w, ch)
         n = x.shape[1]
 
         params = self.params()
         gamma, beta = params.chunk(2, dim=1)  # (n, ch)
 
-        mu = x.mean(dim=-1, keepdim=True)
-        var = x.var(dim=-1, keepdim=True)
-        gamma = gamma.reshape(1, n, 1, 1, -1)
-        beta = beta.reshape(1, n, 1, 1, -1)
+        mu = x.mean(dim=2, keepdim=True)
+        var = x.var(dim=2, keepdim=True)
+        gamma = gamma.reshape(1, n, -1, 1, 1)
+        beta = beta.reshape(1, n, -1, 1, 1)
 
         x = (x - mu) / torch.sqrt(var + self.eps)
         x = x * gamma + beta
-        x = x.permute(0, 1, 4, 2, 3)  # (b, n, ch, h, w)
         return x
 
 
@@ -346,11 +348,8 @@ class FreqCondChannelLinear(nn.Module):
 
     def forward(self, x):
         # x: (b, n, ch, h, w)
-        # to last channel
-        x = x.permute(0, 1, 3, 4, 2)  # (b, n, h, w, ch)
         w = self.params()  # (n, out_ch, in_ch)
-        x = torch.einsum("bnhwc,ndc->bnhwd", x, w)
-        x = x.permute(0, 1, 4, 2, 3)  # (b, n, out_ch, h, w)
+        x = torch.einsum("bnchw,ndc->bndhw", x, w)
         return x
 
 
@@ -408,26 +407,22 @@ class FreqCondStage(nn.Module):
 class Compress(nn.Module):
     def __init__(self, block_size, n):
         super().__init__()
-        self.w = nn.Linear(block_size**2, n, bias=False)
+        self.w = nn.Conv3d(block_size**2, n, kernel_size=1, bias=False)
 
     def forward(self, x):
         # x: (b, block_size ** 2, ch, h, w)
-        x = x.permute(0, 2, 3, 4, 1)  # (b, ch, h, w, block_size ** 2)
         x = self.w(x)
-        x = x.permute(0, 4, 1, 2, 3)  # (b, n, ch, h, w)
         return x
 
 
 class Decompress(nn.Module):
     def __init__(self, block_size, n):
         super().__init__()
-        self.w = nn.Linear(n, block_size**2, bias=False)
+        self.w = nn.Conv3d(n, block_size**2, kernel_size=1, bias=False)
 
     def forward(self, x):
         # x: (b, n, ch, h, w)
-        x = x.permute(0, 2, 3, 4, 1)  # (b, ch, h, w, n)
         x = self.w(x)
-        x = x.permute(0, 4, 1, 2, 3)  # (b, block_size ** 2, ch, h, w)
         return x
 
 
