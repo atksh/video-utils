@@ -1,11 +1,14 @@
+import math
 from typing import List, Optional, Tuple, Union
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import nn
 from torch.jit import Final
 from torchjpeg.dct import block_dct, block_idct, blockify, deblockify
 
+from .einsum import Einsum
 from .fuse import aot_fuse
 
 aot_block_dct = aot_fuse(block_dct)
@@ -22,7 +25,7 @@ class BlockDCTSandwich(nn.Module):
         """DCT -> module -> IDCT
 
         Args:
-            module (nn.Module): Module to apply to DCT coefficients with the shape of (bsz, n_blocks, ch, block_size ** 2)
+            module (nn.Module): Module to apply to DCT coefficients with the shape of (bsz, h', w', ch, block_size ** 2)
             block_size (int): Size of the block to use for DCT
         """
         super().__init__()
@@ -59,36 +62,44 @@ class BlockDCTSandwich(nn.Module):
         bsz, ch, n = x.shape[:3]
         x = x.view(bsz, ch, n, self.block_size**2)
         idx = torch.LongTensor(self.idx, device=x.device).expand_as(x)
-        return x.gather(-1, idx).contiguous()
+        return x.gather(-1, idx)
 
     def from_zigzag(self, x):
         bsz, ch, n = x.shape[:3]
         x = x.view(bsz, ch, n, self.block_size**2)
         inv_idx = torch.LongTensor(self.inv_idx, device=x.device).expand_as(x)
-        x = x.gather(-1, inv_idx).contiguous()
+        x = x.gather(-1, inv_idx)
         return x.view(bsz, ch, n, self.block_size, self.block_size)
+
+    def out_size(self, h, w):
+        out_h = math.ceil((h - self.block_size) / self.block_size + 1)
+        out_w = math.ceil((w - self.block_size) / self.block_size + 1)
+        return out_h, out_w
 
     def pre(self, x):
         bsz, in_ch = x.shape[:2]
+        h, w = x.shape[-2:]
         x = blockify(x, self.block_size)
         x = aot_block_dct(x)
         if self.zigzag:
             x = self.to_zigzag(x)
         else:
             x = x.reshape(bsz, in_ch, -1, self.block_size**2)
-        x = x.contiguous()  # (bsz, in_ch, n_blocks, block_size ** 2)
-        x = x.permute(0, 2, 1, 3).contiguous()
+        x = x.permute(0, 2, 1, 3)  # (bsz, n_blocks, in_ch, block_size ** 2)
+        out_h, out_w = self.out_size(h, w)
+        x = x.reshape(bsz, out_h, out_w, in_ch, self.block_size**2)
         return x
 
     def post(self, x, size):
-        x = x.permute(0, 2, 1, 3).contiguous()
-        bsz, out_ch = x.shape[:2]
+        bsz, out_h, out_w, out_ch, _ = x.shape
+        x = x.view(bsz, out_h * out_w, out_ch, self.block_size**2)
+        x = x.permute(0, 2, 1, 3)
         if self.zigzag:
             x = self.from_zigzag(x)
         else:
             x = x.reshape(bsz, out_ch, -1, self.block_size, self.block_size)
         x = aot_block_idct(x)
-        x = deblockify(x, size).contiguous()
+        x = deblockify(x, size)
         return x
 
     def forward(self, x):
@@ -99,11 +110,11 @@ class BlockDCTSandwich(nn.Module):
                 f"{self.block_size}x{self.block_size}"
                 f" but got {size[0]}x{size[1]}"
             )
-        # (b, c_in, h, w) -> (b, n_blocks, c_in, block_size ** 2)
+        # (b, c_in, h, w) -> (b, h', w', c_in, block_size ** 2)
         x = self.pre(x)
-        # (b, n_blocks, c_in, block_size ** 2) -> (b, n_blocks, c_out, block_size ** 2)
+        # (b, h', w', c_in, block_size ** 2) -> (b, h', w', c_out, block_size ** 2)
         x = self.module(x)
-        # (b, n_blocks, c_out, block_size ** 2) -> (b, c_out, h, w)
+        # (b, h', w', c_out, block_size ** 2) -> (b, c_out, h, w)
         x = self.post(x, size)
         return x
 
@@ -122,32 +133,6 @@ class IDCT(BlockDCTSandwich):
 
     def forward(self, x, size):
         return super().post(x)
-
-
-class FreqConv(nn.Module):
-    def __init__(self, in_ch, out_ch, window_size, groups=1):
-        super().__init__()
-        self.padding = window_size - 1
-        self.conv = nn.Conv1d(in_ch, out_ch, window_size, padding=0, groups=groups)
-
-    def forward(self, x):
-        bsz, n, ch, dim = x.shape
-        x = x.view(bsz * n, ch, dim)
-        x = F.pad(x, (0, self.padding))
-        x = self.conv(x)
-        x = x.view(bsz, n, -1, x.shape[-1])
-        x = x.contiguous()
-        return x
-
-
-class DCTFreqConv(nn.Module):
-    def __init__(self, in_ch, out_ch, window_size: int, block_size: int, groups=1):
-        super().__init__()
-        conv = FreqConv(in_ch, out_ch, window_size=window_size, groups=groups)
-        self.sand = BlockDCTSandwich(conv, block_size, zigzag=True)
-
-    def forward(self, x):
-        return self.sand(x)
 
 
 class DeepSpace(nn.Module):
@@ -200,7 +185,7 @@ class DeepSpace(nn.Module):
             return _x.detach() + x - x.detach()
 
     def forward(self):
-        x = self.x.view(1, -1, 1)
+        x = self.x.view(-1, 1)
         xs = []
         for i in range(4):
             xs.append(x.pow(i + 1))
@@ -211,24 +196,122 @@ class DeepSpace(nn.Module):
         x = torch.cat(xs, dim=-1)
         x = x - x.mean(dim=1, keepdim=True)
         x = x / x.std(dim=1, keepdim=True)
-        x = self.mlp(x)  # (1, n, out_dim)
+        x = self.mlp(x)  # (n, out_dim)
         x = self.soft_clip(x)
-        return x.view(-1, n, *self.shape)
+        return x.view(x.shape[0], *self.shape)
 
 
-class PassFilter(nn.Module):
+class FreqPassFilter(nn.Module):
     def __init__(self, ch: int, block_size: int):
         super().__init__()
         length = block_size**2
         self.x = nn.Parameter(torch.zeros(ch, length))
 
-    def forward(self, inp):
-        # x: (b, n_blocks, ch, block_size**2)
-        assert self.x.shape[0] == inp.shape[-2]
-        assert self.x.shape[1] == inp.shape[-1]
-
+    def get_filter(self):
         s1 = F.softmax(self.x, dim=-1).cumsum(dim=-1)
         s2 = torch.flip(self.x, dim=-1).softmax(dim=-1).cumsum(dim=-1).flip(dim=-1)
         s = torch.minimum(s1, s2)  # (ch, length)
-        s = s.unsqueeze(0).unsqueeze(0)  # (1, 1, ch, length)
+        s = s / s.sum(dim=-1, keepdim=True)  # normalize
+        return s
+
+    def forward(self, inp):
+        # x: (b, h', w', ch, block_size**2)
+        assert self.x.shape[0] == inp.shape[-2]
+        assert self.x.shape[1] == inp.shape[-1]
+        s = self.get_filter()
+        s = s[None, None, None, :, :]  # (1, 1, 1, ch, length)
         return inp * s
+
+
+class FreqCondFFN(nn.Module):
+    """FFN conditioned on frequency"""
+
+    def __init__(self, dim: int, block_size: int, expand_factor: int = 2):
+        super().__init__()
+        shape = (3, dim * expand_factor, dim)
+        self.params = DeepSpace(n=block_size**2, shape=shape)
+        self.einsum = Einsum("bnlc,ldc->bnld")
+
+    def get_weights(self):
+        w1, w2, w3 = self.params().unbind(dim=0)
+        w3 = w3.view(w3.shape[1], -1)
+        return w1, w2, w3
+
+    def forward(self, x):
+        out_h = x.shape[1]
+        out_w = x.shape[2]
+        x = x.view(x.shape[0], out_h * out_w, *x.shape[3:])
+        # x: (b, n_blocks, ch, block_size**2)
+        x = x.permute(0, 1, 3, 2)  # (b, n_blocks, block_size**2, ch)
+        w1, w2, w3 = self.get_weights()  # (block_size**2, dim * expand_factor, dim)
+        x1 = self.einsum(x, w1)
+        x2 = self.einsum(x, w2)
+        x = x1 * F.silu(x2)
+        x = self.einsum(x, w3)
+        x = x.permute(0, 1, 3, 2)  # (b, n_blocks, ch, block_size**2)
+        x = x.reshape(x.shape[0], out_h, out_w, -1, x.shape[-1])
+        return x
+
+
+class FreqConvConv2dBase(nn.Module):
+    def __init__(self, in_ch, out_ch, kernel_size, block_size):
+        super().__init__()
+        self.block_size = block_size
+        self.padding = (kernel_size - 1) // 2
+        self.kernel_size = kernel_size
+        shape = (out_ch, in_ch * kernel_size**2)
+        self.params = DeepSpace(n=block_size**2, shape=shape)
+
+    def im2col(self, x):
+        # x: (b, h, w, ch, block_size**2)
+        bsz, h, w, ch, n = x.shape
+        x = x.permute(0, 4, 3, 1, 2)  # (b, n, ch, h, w)
+        x = x.reshape(bsz * n, ch, h, w)  # (b * n, ch, h, w)
+        x = F.unfold(x, self.kernel_size, padding=self.padding)
+        # (b * n, ch * kernel_size**2, L)
+        return x.view(bsz, n, *x.shape[1:])
+
+    def col2im(self, x, size):
+        # x: (b, n, ch * kernel_size**2, L)
+        bsz, n = x.shape[:2]
+        x = x.view(bsz * n, *x.shape[2:])  # (b * n, ch * kernel_size**2, L)
+        x = F.fold(x, size, self.kernel_size, padding=self.padding)  # (b * n, ch, h, w)
+        x = x.reshape(bsz, -1, *x.shape[1:])  # (b, n, ch, h, w)
+        x = x.permute(0, 3, 4, 2, 1)  # (b, h, w, ch, n)
+        return x
+
+    def forward(self, x):
+        # x: (b, h, w, ch, block_size**2)
+        size = x.shape[1:3]
+        x = self.im2col(x)  # (b, n, ch * kernel_size**2, L)
+        w = self.params()  # (n, out_ch, in_ch * kernel_size**2)
+        x = x.permute(0, 1, 3, 2)  # (b, n, L, ch * kernel_size**2)
+        x = torch.einsum("bnlc,ndc->bnld", x, w)  # (b, n, L, out_ch)
+        x = x.permute(0, 1, 3, 2)  # (b, n, out_ch, L)
+        x = self.col2im(x, size)  # (b, h, w, out_ch, n)
+        return x
+
+
+class FreqCondConv2d(nn.Module):
+    def __init__(self, in_ch, out_ch, kernel_size, groups, block_size):
+        super().__init__()
+        if in_ch % groups != 0:
+            raise ValueError(f"in_ch ({in_ch}) must be divisible by groups ({groups})")
+        if out_ch % groups != 0:
+            raise ValueError(
+                f"out_ch ({out_ch}) must be divisible by groups ({groups})"
+            )
+
+        convs = []
+        for _ in range(groups):
+            convs.append(FreqConvConv2dBase(in_ch, out_ch, kernel_size, block_size))
+        self.convs = nn.ModuleList(convs)
+
+    def forward(self, x):
+        # x: (b, h, w, ch, block_size**2)
+        x = torch.split(
+            x, self.groups, dim=-2
+        )  # (b, h, w, ch // groups, block_size**2)
+        x = [conv(x_) for x_, conv in zip(x, self.convs)]
+        x = torch.cat(x, dim=-2)  # (b, h, w, ch, block_size**2)
+        return x
