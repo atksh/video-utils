@@ -10,7 +10,7 @@ n_steps = 1
 
 
 in_dim = 3
-widths = [32, 48, 64, 96]
-depths = [3, 3, 3, 3]
-heads = [2, 3, 4, 6]
+widths = [32, 64, 128, 192]
+depths = [2, 2, 4, 2]
+heads = [1, 2, 4, 6]
 stem_dim = widths[0]
