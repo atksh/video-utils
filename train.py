@@ -11,6 +11,22 @@ from config import *
 from video.callback import SetPrecisionCallback
 from video.net import DataModule, Model
 
+
+def create_dm(video_path_list):
+    dl = DataModule(
+        video_path_list,
+        max_len,
+        n_steps,
+        train_batch_size,
+        num_workers,
+        save_dir=cache_dir,
+        resolution=resolution,
+        fps=fps,
+        skip_rate=skip_rate,
+    )
+    return dl
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--debug", action="store_true")
@@ -23,17 +39,6 @@ if __name__ == "__main__":
 
     max_epochs = 1000
 
-    dl = DataModule(
-        path,
-        max_len,
-        n_steps,
-        train_batch_size,
-        num_workers,
-        save_dir=cache_dir,
-        resolution=resolution,
-        fps=fps,
-        skip_rate=skip_rate,
-    )
     model = Model(
         in_dim=in_dim,
         stem_dim=stem_dim,
@@ -51,7 +56,6 @@ if __name__ == "__main__":
         precision=32,
         max_epochs=max_epochs,
         log_every_n_steps=1,
-        accumulate_grad_batches=total_batch_size // train_batch_size,
         benchmark=True,
         deterministic=False,
         check_val_every_n_epoch=1,
@@ -61,5 +65,11 @@ if __name__ == "__main__":
         limit_val_batches=1.0 / skip_rate,
         limit_test_batches=1.0 / skip_rate,
         callbacks=[precision_callback, checkpoint_callback],
+        auto_scale_batch_size="binsearch",
     )
-    trainer.fit(model=model, datamodule=dl)
+
+    tune_dl = create_dm(["video2.mp4"])
+    trainer.tune(model, datamodule=tune_dl)
+
+    train_dl = create_dm(path)
+    trainer.fit(model, datamodule=train_dl)
