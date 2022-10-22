@@ -8,8 +8,6 @@ from torch import nn
 from torch.jit import Final
 from torchjpeg.dct import block_dct, block_idct, blockify, deblockify
 
-from .einsum import Einsum
-
 
 class BlockDCTSandwich(nn.Module):
     idx: Final[List[int]]
@@ -229,7 +227,6 @@ class FreqCondFFN(nn.Module):
         super().__init__()
         shape = (3, dim * expand_factor, dim)
         self.params = DeepSpace(n=block_size**2, shape=shape)
-        self.einsum = Einsum("blhwc,ldc->blhwd")
 
     def get_weights(self):
         w1, w2, w3 = self.params().unbind(dim=1)
@@ -241,10 +238,10 @@ class FreqCondFFN(nn.Module):
         # to last channel
         x = x.permute(0, 1, 3, 4, 2)
         w1, w2, w3 = self.get_weights()  # (block_size**2, dim * expand_factor, dim)
-        x1 = self.einsum(x, w1)
-        x2 = self.einsum(x, w2)
+        x1 = torch.einsum("blhwc,ldc->blhwd", x, w1)
+        x2 = torch.einsum("blhwc,ldc->blhwd", x, w2)
         x = x1 * F.silu(x2)
-        x = self.einsum(x, w3)
+        x = torch.einsum("blhwc,ldc->blhwd", x, w3)
         x = x.permute(0, 1, 4, 2, 3)
         return x
 
