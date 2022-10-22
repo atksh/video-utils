@@ -407,10 +407,10 @@ class FreqCondStage(nn.Module):
         return x
 
 
-class Compress(nn.Module):
-    def __init__(self, block_size, n):
+class FreqLinear(nn.Module):
+    def __init__(self, in_ch, out_ch):
         super().__init__()
-        self.w = nn.Parameter(torch.zeros((n, block_size**2)))
+        self.w = nn.Parameter(torch.zeros((out_ch, in_ch)))
         nn.init.trunc_normal_(self.w, std=0.02)
 
     def forward(self, x):
@@ -420,17 +420,22 @@ class Compress(nn.Module):
         return x
 
 
-class Decompress(nn.Module):
-    def __init__(self, block_size, n):
-        super().__init__()
-        self.w = nn.Parameter(torch.zeros((block_size**2, n)))
-        nn.init.trunc_normal_(self.w, std=0.02)
+def FreqMLP(in_ch, out_ch):
+    return nn.Sequential(
+        FreqLinear(in_ch, in_ch),
+        nn.SiLU(),
+        FreqLinear(in_ch, in_ch),
+        nn.SiLU(),
+        FreqLinear(in_ch, out_ch),
+    )
 
-    def forward(self, x):
-        x = x.permute(0, 2, 3, 4, 1)  # (b, ch, h, w, n)
-        x = torch.matmul(x, self.w.transpose(-1, -2))
-        x = x.permute(0, 4, 1, 2, 3)  # (b, n, ch, h, w)
-        return x
+
+def Compress(block_size, n):
+    return FreqMLP(block_size**2, n)
+
+
+def Decompress(block_size, n):
+    return FreqMLP(n, block_size**2)
 
 
 class FreqBackbone(nn.Module):
@@ -552,6 +557,35 @@ class FreqAttention(nn.Module):
         return out
 
 
+class TimeWrapper(nn.Module):
+    def __init__(self, module):
+        super().__init__()
+        self.module = module
+
+    def forward(self, x):
+        b, t = x.shape[:2]
+        x = x.view(b * t, *x.shape[2:])
+        x = self.module(x)
+        x = x.view(b, t, *x.shape[1:])
+        return x
+
+
+class FreqTransformer(nn.Module):
+    def __init__(self, ch, n, heads):
+        super().__init__()
+        self.attn = FreqAttention(ch, n, heads)
+        self.ln_attn = TimeWrapper(FreqCondLayerNorm(ch, n))
+        self.ffn = TimeWrapper(FreqCondBlock(ch, n))
+        self.ln_ffn = TimeWrapper(FreqCondLayerNorm(ch, n))
+
+    def forward(self, x):
+        # x: (b, t, n, ch, h, w)
+        resid = x
+        x = self.ln_attn(x + self.attn(x, x))
+        x = self.ln_ffn(x + self.ffn(x) + resid)
+        return x
+
+
 class FreqVideoEncoder(nn.Module):
     def __init__(self, in_ch, depths, widths, block_size, n, heads):
         super().__init__()
@@ -563,22 +597,21 @@ class FreqVideoEncoder(nn.Module):
             n=n,
             return_freq=True,
         )
-        attns = []
+        trns = []
         for i in range(len(depths)):
-            attns.append(
+            trns.append(
                 nn.Sequential(
-                    FreqAttention(widths[i], n, heads[i]),
-                    FreqCondLayerNorm(widths[i], n),
+                    *[FreqTransformer(widths[i], n, heads[i]) for _ in range(depths[i])]
                 )
             )
-        self.attns = nn.ModuleList(attns)
+        self.trns = nn.ModuleList(trns)
 
     def forward(self, x):
         b, t = x.shape[:2]
         x = x.view(b * t, *x.shape[2:])
         feats = self.backbone(x)
         feats = [f.view(b, t, *f.shape[1:]) for f in feats]
-        feats = [attn(f, f) for attn, f in zip(self.attns, feats)]
+        feats = [self.trns[i](f) for i, f in enumerate(feats)]
         return feats
 
 
@@ -586,19 +619,21 @@ class FreqVideoDecoder(nn.Module):
     def __init__(self, in_ch, depths, widths, block_size, n, heads):
         super().__init__()
         self.block_size = block_size
-        attns = []
+        trns = []
         projs = []
         for i in reversed(range(1, len(depths))):
             add_ch = widths[i - 1]
             projs.append(FreqCondChannelLinear(widths[i] + add_ch, widths[i - 1], n))
-            attns.append(
+            trns.append(
                 nn.Sequential(
-                    FreqAttention(widths[i - 1], n, heads[i - 1]),
-                    FreqCondLayerNorm(widths[i - 1], n),
+                    *[
+                        FreqTransformer(widths[i - 1], n, heads[i - 1])
+                        for _ in range(depths[i - 1])
+                    ]
                 )
             )
 
-        self.attns = nn.ModuleList(attns)
+        self.trns = nn.ModuleList(trns)
         self.projs = nn.ModuleList(projs)
         self.fc = FreqCondChannelLinear(widths[0], in_ch, n)
 
@@ -627,7 +662,7 @@ class FreqVideoDecoder(nn.Module):
             x = x.view(bsz * t, *x.shape[2:])
             x = self.projs[i](x)
             x = x.view(bsz, t, *x.shape[1:])
-            x = self.attns[i](x, x)
+            x = self.trns[i](x)
 
         x = self.interpolate(
             x, size=(size[0] // self.block_size, size[1] // self.block_size)
