@@ -12,7 +12,12 @@ class Encoder(nn.Module):
         self.to_image = VideoToImage()
         self.to_video = ImageToVideo()
         self.backbone = FreqBackbone(
-            in_ch=in_dim, depths=depths, widths=widths, block_size=8
+            in_ch=in_dim,
+            depths=depths,
+            widths=widths,
+            block_size=8,
+            n=8,
+            return_freq=False,
         )
 
         feat_time_blocks = []
@@ -25,7 +30,7 @@ class Encoder(nn.Module):
         # (B, T, C, H, W) -> list of (B, T, C, H // k, W // k) k = 4, 8, ...
         bsz = video.shape[0]
         x = self.to_image(video)
-        feats = self.backbone(x, return_freq=False)
+        feats = self.backbone(x)
         feats = [self.to_video(feat, bsz) for feat in feats]
         feats = [self.feat_time_blocks[i](feat) for i, feat in enumerate(feats)]
         return feats
