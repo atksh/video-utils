@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from .dataset import VideoDataset
 from .nn.loss import MSSSIML1Loss
-from .nn.module import Decoder, Encoder
+from .nn.module import VideoModel
 
 
 class DataModule(pl.LightningDataModule):
@@ -126,38 +126,18 @@ class Model(pl.LightningModule):
         resolution_scale,
     ):
         super().__init__()
-        in_widths = widths[::-1]
-        add_widths = widths[:-1][::-1] + [in_ch * (resolution_scale**2)]
-        out_widths = in_widths[1:] + [in_widths[-1]]
-        dec_heads = heads[:-1][::-1] + [heads[0]]
-        dec_head_widths = head_widths[:-1][::-1] + [head_widths[0]]
-        dec_block_sizes = block_sizes[:-1][::-1] + [block_sizes[0]]
-        dec_kernel_sizes = kernel_sizes[:-1][::-1] + [kernel_sizes[0]]
-
-        self.encoder = Encoder(
-            in_ch=in_ch,
-            widths=widths,
-            depths=depths,
-            heads=heads,
-            head_widths=head_widths,
-            block_sizes=block_sizes,
-            kernel_sizes=kernel_sizes,
-            resolution_scale=resolution_scale,
+        self.model = VideoModel(
+            in_ch,
+            out_ch,
+            widths,
+            depths,
+            heads,
+            head_widths,
+            block_sizes,
+            kernel_sizes,
+            dec_depths,
+            resolution_scale,
         )
-
-        self.decoder = Decoder(
-            out_ch=out_ch,
-            in_widths=in_widths,
-            add_widths=add_widths,
-            out_widths=out_widths,
-            depths=dec_depths,
-            heads=dec_heads,
-            head_widths=dec_head_widths,
-            block_sizes=dec_block_sizes,
-            kernel_sizes=dec_kernel_sizes,
-            resolution_scale=resolution_scale,
-        )
-
         self.loss = MSSSIML1Loss()
 
     def forward(self, video):

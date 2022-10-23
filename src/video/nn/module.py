@@ -698,3 +698,56 @@ class Decoder(nn.Module):
         z = self.resize(z)
         z = self.scale(z, size)
         return z.sigmoid()
+
+
+class VideoModel(nn.Module):
+    def __init__(
+        self,
+        in_ch,
+        out_ch,
+        widths,
+        depths,
+        heads,
+        head_widths,
+        block_sizes,
+        kernel_sizes,
+        dec_depths,
+        resolution_scale,
+    ):
+        super().__init__()
+        in_widths = widths[::-1]
+        add_widths = widths[:-1][::-1] + [in_ch * (resolution_scale**2)]
+        out_widths = in_widths[1:] + [in_widths[-1]]
+        dec_heads = heads[:-1][::-1] + [heads[0]]
+        dec_head_widths = head_widths[:-1][::-1] + [head_widths[0]]
+        dec_block_sizes = block_sizes[:-1][::-1] + [block_sizes[0]]
+        dec_kernel_sizes = kernel_sizes[:-1][::-1] + [kernel_sizes[0]]
+
+        self.encoder = Encoder(
+            in_ch=in_ch,
+            widths=widths,
+            depths=depths,
+            heads=heads,
+            head_widths=head_widths,
+            block_sizes=block_sizes,
+            kernel_sizes=kernel_sizes,
+            resolution_scale=resolution_scale,
+        )
+
+        self.decoder = Decoder(
+            out_ch=out_ch,
+            in_widths=in_widths,
+            add_widths=add_widths,
+            out_widths=out_widths,
+            depths=dec_depths,
+            heads=dec_heads,
+            head_widths=dec_head_widths,
+            block_sizes=dec_block_sizes,
+            kernel_sizes=dec_kernel_sizes,
+            resolution_scale=resolution_scale,
+        )
+
+    def forward(self, x: VideoTensor) -> VideoTensor:
+        size = x.shape[-2:]
+        feats = self.encoder(x)
+        return self.decoder(feats, size)
