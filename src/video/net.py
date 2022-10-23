@@ -126,7 +126,7 @@ class Model(pl.LightningModule):
         resolution_scale,
     ):
         super().__init__()
-        model = VideoModel(
+        self.model = VideoModel(
             in_ch,
             out_ch,
             widths,
