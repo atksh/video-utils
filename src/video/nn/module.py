@@ -419,6 +419,8 @@ class Stage(nn.Module):
         eps: float = 1e-5,
         initial_scale: float = 1.0,
         drop_prob: float = 0.0,
+        fuse: bool = False,
+        reversible: bool = False,
     ):
         super().__init__()
         self.dim = dim
@@ -497,7 +499,9 @@ class Stage(nn.Module):
             )
 
         layers = [self.make_block(*args) for args in layers]
-        self.layers = ResidualSequential(layers, split_dim=2)
+        self.layers = ResidualSequential(
+            layers, split_dim=2, fuse=fuse, reversible=reversible
+        )
         self.norm = ImageWise(ChannelWise(LayerNorm(dim, eps)))
 
     def make_block(
@@ -535,6 +539,8 @@ class DownStage(nn.Module):
         eps: float = 1e-5,
         initial_scale: float = 1.0,
         drop_prob: float = 0.0,
+        fuse: bool = False,
+        reversible: bool = False,
     ):
         super().__init__()
         self.proj = ImageWise(SameConv2d(in_dim, out_dim, 1))
@@ -549,6 +555,8 @@ class DownStage(nn.Module):
             eps,
             initial_scale,
             drop_prob,
+            fuse,
+            reversible,
         )
 
     def forward(self, x: VideoTensor) -> VideoTensor:
@@ -572,6 +580,8 @@ class UpStage(nn.Module):
         eps: float = 1e-5,
         initial_scale: float = 1.0,
         drop_prob: float = 0.0,
+        fuse: bool = False,
+        reversible: bool = False,
     ):
         super().__init__()
         self.up = Upsample3D(in_dim)
@@ -586,6 +596,8 @@ class UpStage(nn.Module):
             eps,
             initial_scale,
             drop_prob,
+            fuse,
+            reversible,
         )
 
     def forward(self, x: VideoTensor, y: VideoTensor) -> VideoTensor:
@@ -609,6 +621,8 @@ class Encoder(nn.Module):
         initial_scale: float = 1.0,
         drop_prob: float = 0.0,
         resolution_scale: int = 1,
+        fuse: bool = False,
+        reversible: bool = False,
     ):
         super().__init__()
         self.resolution_scale = resolution_scale
@@ -629,6 +643,8 @@ class Encoder(nn.Module):
                     eps,
                     initial_scale,
                     drop_prob,
+                    fuse,
+                    reversible,
                 )
             )
 
@@ -660,6 +676,8 @@ class Decoder(nn.Module):
         initial_scale: float = 1.0,
         drop_prob: float = 0.0,
         resolution_scale: int = 1,
+        fuse: bool = False,
+        reversible: bool = False,
     ):
         super().__init__()
         self.resolution_scale = resolution_scale
@@ -696,6 +714,8 @@ class Decoder(nn.Module):
                     eps,
                     initial_scale,
                     drop_prob,
+                    fuse,
+                    reversible,
                 )
             )
 
@@ -734,16 +754,18 @@ class Decoder(nn.Module):
 class VideoModel(nn.Module):
     def __init__(
         self,
-        in_ch,
-        out_ch,
-        widths,
-        depths,
-        heads,
-        head_widths,
-        block_sizes,
-        kernel_sizes,
-        dec_depths,
-        resolution_scale,
+        in_ch: int,
+        out_ch: int,
+        widths: List[int],
+        depths: List[int],
+        heads: List[int],
+        head_widths: List[int],
+        block_sizes: List[int],
+        kernel_sizes: List[int],
+        dec_depths: List[int],
+        resolution_scale: int = 1,
+        fuse: bool = False,
+        reversible: bool = False,
     ):
         super().__init__()
         in_widths = widths[::-1]
@@ -763,6 +785,8 @@ class VideoModel(nn.Module):
             block_sizes=block_sizes,
             kernel_sizes=kernel_sizes,
             resolution_scale=resolution_scale,
+            fuse=fuse,
+            reversible=reversible,
         )
 
         self.decoder = Decoder(
@@ -776,6 +800,8 @@ class VideoModel(nn.Module):
             block_sizes=dec_block_sizes,
             kernel_sizes=dec_kernel_sizes,
             resolution_scale=resolution_scale,
+            fuse=fuse,
+            reversible=reversible,
         )
 
     def forward(self, x: VideoTensor) -> VideoTensor:
