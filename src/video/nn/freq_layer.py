@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from torch import nn
 from torch.jit import Final
 from torchjpeg.dct import block_dct, block_idct, blockify, deblockify
+from torchtyping import TensorType as TT
 
 from .fuse import aot_fuse
 
@@ -13,11 +14,11 @@ aot_block_dct = aot_fuse(block_dct)
 aot_block_idct = aot_fuse(block_idct)
 
 
-def dct(x):
+def dct(x: TT["B", "C", "L", "H", "W"]) -> TT["B", "C", "L", "H", "W"]:
     return aot_block_dct(x)
 
 
-def idct(x):
+def idct(x: TT["B", "C", "L", "H", "W"]) -> TT["B", "C", "L", "H", "W"]:
     return aot_block_idct(x)
 
 

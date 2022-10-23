@@ -7,8 +7,8 @@ from adabelief_pytorch import AdaBelief
 from tqdm import tqdm
 
 from .dataset import VideoDataset
-from .nn.freq_layer import FreqVideoModel
 from .nn.loss import MSSSIML1Loss
+from .nn.module import Decoder, Encoder
 
 
 class DataModule(pl.LightningDataModule):
@@ -114,16 +114,46 @@ class DataModule(pl.LightningDataModule):
 class Model(pl.LightningModule):
     def __init__(
         self,
-        in_dim,
-        stem_dim,
+        in_ch,
+        out_ch,
         widths,
         depths,
         heads,
+        head_widths,
+        block_sizes,
+        kernel_sizes,
+        dec_depths,
     ):
         super().__init__()
-        self.model = FreqVideoModel(
-            in_dim, depths, widths, block_size=8, n=8, heads=heads
+        in_widths = widths[1:][::-1]
+        add_widths = out_widths = widths[:-1][::-1]
+        dec_heads = heads[:-1][::-1]
+        dec_head_widths = head_widths[:-1][::-1]
+        dec_block_sizes = block_sizes[:-1][::-1]
+        dec_kernel_sizes = kernel_sizes[:-1][::-1]
+
+        self.encoder = Encoder(
+            in_ch=in_ch,
+            widths=widths,
+            depths=depths,
+            heads=heads,
+            head_widths=head_widths,
+            block_sizes=block_sizes,
+            kernel_sizes=kernel_sizes,
         )
+
+        self.decoder = Decoder(
+            out_ch=out_ch,
+            in_widths=in_widths,
+            add_widths=add_widths,
+            out_widths=out_widths,
+            depths=dec_depths,
+            heads=dec_heads,
+            head_widths=dec_head_widths,
+            block_sizes=dec_block_sizes,
+            kernel_sizes=dec_kernel_sizes,
+        )
+
         self.loss = MSSSIML1Loss()
 
     def forward(self, video):

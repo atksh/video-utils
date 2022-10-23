@@ -40,11 +40,15 @@ if __name__ == "__main__":
     max_epochs = 1000
 
     model = Model(
-        in_dim=in_dim,
-        stem_dim=stem_dim,
+        in_ch=in_ch,
+        out_ch=out_ch,
         widths=widths,
         depths=depths,
         heads=heads,
+        head_widths=head_widths,
+        block_sizes=block_sizes,
+        kernel_sizes=kernel_sizes,
+        dec_depths=dec_depths,
     )
 
     precision_callback = SetPrecisionCallback()

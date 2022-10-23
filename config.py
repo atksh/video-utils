@@ -10,8 +10,11 @@ fps = 30
 n_steps = 1
 
 
-in_dim = 3
-widths = [32, 64, 128, 192]
+in_ch = out_ch = 3
+widths = [8, 16, 32, 64]
 depths = [2, 2, 4, 2]
-heads = [1, 2, 4, 6]
-stem_dim = widths[0]
+heads = [1, 2, 4, 8]
+head_widths = [8, 8, 8, 8]
+block_sizes = [8, 8, 8, 8]
+kernel_sizes = [3, 3, 3, 3]
+dec_depths = [1, 1, 1]
