@@ -11,11 +11,11 @@ n_steps = 1
 
 
 in_ch = out_ch = 3
-widths = [16, 32, 64, 128, 256]
-depths = [1, 2, 4, 4, 2]
-heads = [1, 1, 2, 4, 8]
-head_widths = [16, 16, 32, 32, 32]
-block_sizes = [8, 8, 8, 4, 4]
-kernel_sizes = [7, 7, 5, 5, 3]
-dec_depths = [1, 1, 1, 1, 1]
-resolution_scale = 4
+widths = [16, 32, 64, 128]
+depths = [1, 2, 4, 4]
+heads = [1, 1, 2, 4]
+head_widths = [16, 16, 32, 32]
+block_sizes = [8, 8, 8, 4]
+kernel_sizes = [7, 7, 5, 3]
+dec_depths = [1, 1, 1, 1]
+resolution_scale = 2

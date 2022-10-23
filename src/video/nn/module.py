@@ -688,7 +688,6 @@ class Decoder(nn.Module):
 
     def forward(self, x: VideoTensor, feats: List[VideoTensor]) -> VideoTensor:
         size = x.shape[-2:]
-        x = self.scale(x)
         x = self.duplicate_last(x)
         feats = [self.duplicate_last(feat) for feat in feats]
         z = feats[-1]
