@@ -4,7 +4,6 @@ import os
 import pytorch_lightning as pl
 import torch
 from adabelief_pytorch import AdaBelief
-from functorch.compile import memory_efficient_fusion
 from tqdm import tqdm
 
 from .dataset import VideoDataset
@@ -139,7 +138,6 @@ class Model(pl.LightningModule):
             dec_depths,
             resolution_scale,
         )
-        self.model = memory_efficient_fusion(model)
         self.loss = MSSSIML1Loss()
 
     def forward(self, video):
@@ -170,7 +168,8 @@ class Model(pl.LightningModule):
     def configure_optimizers(self):
         return AdaBelief(
             self.parameters(),
-            lr=4e-5,
+            lr=4e-4,
             weight_decay=1e-4,
             print_change_log=False,
+            eps=1e-12,
         )
