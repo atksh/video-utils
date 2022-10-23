@@ -1,5 +1,4 @@
 import enum
-import math
 from typing import List, Tuple, Union
 
 import revlib
@@ -92,20 +91,6 @@ class LinearAttention(nn.Module):
         out = torch.matmul(context.transpose(-1, -2), q)
         out = self.to_out(out.view(b, -1, l))
         return out
-
-
-class RMSNorm(nn.Module):
-    def __init__(self, dim: int, eps: float = 1e-5):
-        super().__init__()
-        self.eps = eps
-        self.scale = math.sqrt(dim)
-        self.gamma = nn.Parameter(torch.ones((1, dim, 1)))
-        self.beta = nn.Parameter(torch.zeros((1, dim, 1)))
-
-    def forward(self, x: ChannelTensor) -> ChannelTensor:
-        x = F.normalize(x, dim=1, eps=self.eps)
-        x = x * self.gamma * self.scale + self.beta
-        return x
 
 
 class LayerNorm(nn.Module):
