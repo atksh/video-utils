@@ -13,7 +13,7 @@ ImageTensor = TT["batch", "channel", "height", "width"]
 VideoTensor = TT["batch", "time", "channel", "height", "width"]
 
 
-class SELayer:
+class SELayer(nn.Module):
     def __init__(self, in_channels: int, reduction: int = 16):
         super().__init__()
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
