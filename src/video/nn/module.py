@@ -579,7 +579,7 @@ class Encoder(nn.Module):
     ):
         super().__init__()
         self.resolution_scale = resolution_scale
-        in_widths = [in_ch] + widths[:-1]
+        in_widths = [in_ch * (self.resolution_scale**2)] + widths[:-1]
         stages = []
         for in_width, width, depth, head, head_width, block_size, kernel_size in zip(
             in_widths, widths, depths, heads, head_widths, block_sizes, kernel_sizes
@@ -600,6 +600,7 @@ class Encoder(nn.Module):
             )
 
         self.stages = nn.ModuleList(stages)
+        self.resize = ImageWise(nn.PixelUnshuffle(self.resolution_scale))
 
     def scale(self, x: VideoTensor) -> VideoTensor:
         b, t, _, *size = x.shape
@@ -610,6 +611,7 @@ class Encoder(nn.Module):
         return x
 
     def forward(self, x: VideoTensor) -> List[VideoTensor]:
+        x = self.resize(x)
         x = self.scale(x)
         feats = []
         for stage in self.stages:
