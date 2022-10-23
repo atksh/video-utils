@@ -480,7 +480,7 @@ class Stage(nn.Module):
 
         layers = [self.make_block(*args) for args in layers]
         self.layers = ResidualSequential(layers, split_dim=2)
-        self.norm = ImageWise(ChannelWise(RMSNorm(dim, eps)))
+        self.norm = ImageWise(ChannelWise(LayerNorm(dim, eps)))
 
     def make_block(
         self, layer_type, module, add_prenorm, add_layer_scale, add_droppath
