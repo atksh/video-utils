@@ -4,6 +4,7 @@ import os
 import pytorch_lightning as pl
 import torch
 from adabelief_pytorch import AdaBelief
+from functorch.compile import memory_efficient_fusion
 from tqdm import tqdm
 
 from .dataset import VideoDataset
@@ -126,7 +127,7 @@ class Model(pl.LightningModule):
         resolution_scale,
     ):
         super().__init__()
-        self.model = VideoModel(
+        model = VideoModel(
             in_ch,
             out_ch,
             widths,
@@ -138,13 +139,11 @@ class Model(pl.LightningModule):
             dec_depths,
             resolution_scale,
         )
+        self.model = memory_efficient_fusion(model)
         self.loss = MSSSIML1Loss()
 
     def forward(self, video):
-        size = video.shape[-2:]
-        feats = self.encoder(video)
-        y = self.decoder(feats, size)
-        return y
+        return self.model(video)
 
     def training_step(self, batch, batch_idx):
         x, y = batch

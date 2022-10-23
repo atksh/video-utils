@@ -358,7 +358,7 @@ def make_block(
         return nn.Sequential(*out)
 
 
-class ResidualSequential(nn.Module):
+class RevResidualSequential(nn.Module):
     def __init__(self, layers, split_dim, fuse: bool = True):
         super().__init__()
         self.split_dim = split_dim
@@ -374,6 +374,37 @@ class ResidualSequential(nn.Module):
         s = self.sigmoid(self.s)
         x = s * x1 + (1 - s) * x2
         return x
+
+
+class NaiveResidualSequential(nn.Module):
+    def __init__(self, layers, fuse: bool = True):
+        super().__init__()
+        if fuse:
+            layers = [memory_efficient_fusion(layer) for layer in layers]
+        self.layers = nn.ModuleList(layers)
+
+    def forward(self, x: TT[...]) -> TT[...]:
+        for layer in self.layers:
+            x = x + layer(x)
+        return x
+
+
+class ResidualSequential(nn.Module):
+    def __init__(
+        self,
+        layers,
+        split_dim,
+        fuse: bool = False,
+        reversible: bool = False,
+    ):
+        super().__init__()
+        if reversible:
+            self.module = RevResidualSequential(layers, split_dim, fuse=fuse)
+        else:
+            self.module = NaiveResidualSequential(layers, fuse=fuse)
+
+    def forward(self, x: TT[...]) -> TT[...]:
+        return self.module(x)
 
 
 class Stage(nn.Module):
