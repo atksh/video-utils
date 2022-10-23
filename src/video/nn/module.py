@@ -361,11 +361,14 @@ def make_block(
     if add_prenorm:
         out.append(wrap_layer(LayerNorm(dim, eps), LayerType.channel, block_size))
     out.append(wrap_layer(module, layer_type, block_size))
-    if add_layer_scale:
+    if add_layer_scale and initial_scale != 1.0:
         out.append(LayerScale(initial_scale))
-    if add_droppath:
+    if add_droppath and drop_prob > 0.0:
         out.append(DropPath(drop_prob))
-    return nn.Sequential(*out)
+    if len(out) == 1:
+        return out[0]
+    else:
+        return nn.Sequential(*out)
 
 
 class ResidualSequential(nn.Module):
@@ -477,6 +480,7 @@ class Stage(nn.Module):
 
         layers = [self.make_block(*args) for args in layers]
         self.layers = ResidualSequential(layers, split_dim=2)
+        self.norm = ImageWise(ChannelWise(RMSNorm(dim, eps)))
 
     def make_block(
         self, layer_type, module, add_prenorm, add_layer_scale, add_droppath
@@ -496,6 +500,7 @@ class Stage(nn.Module):
 
     def forward(self, x: VideoTensor) -> VideoTensor:
         x = self.layers(x)
+        x = self.norm(x)
         return x
 
 
