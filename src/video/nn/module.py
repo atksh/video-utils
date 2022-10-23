@@ -453,16 +453,16 @@ class Stage(nn.Module):
                     False,
                     False,
                     False,
-                ),
-                layers.append(
-                    (
-                        LayerType.block,
-                        SELayer(dim),
-                        False,
-                        False,
-                        False,
-                    )
-                ),
+                )
+            )
+            layers.append(
+                (
+                    LayerType.block,
+                    SELayer(dim),
+                    False,
+                    False,
+                    False,
+                )
             )
 
         layers = [self.make_block(*args) for args in layers]
