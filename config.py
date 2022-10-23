@@ -5,7 +5,7 @@ num_workers = 8
 
 train_batch_size = 5
 predict_batch_size = 1
-accumulate_grad_batchs = 1
+accumulate_grad_batchs = 4
 fps = 30
 n_steps = 1
 
