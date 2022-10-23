@@ -7,7 +7,6 @@ from adabelief_pytorch import AdaBelief
 from tqdm import tqdm
 
 from .dataset import VideoDataset
-from .nn.loss import MSSSIML1Loss
 from .nn.module import VideoModel, make_fused_model_loss
 
 
@@ -138,7 +137,7 @@ class Model(pl.LightningModule):
             dec_depths,
             resolution_scale,
         )
-        loss = MSSSIML1Loss()
+        loss = torch.nn.BCEWithLogitsLoss()
         self.model_loss = make_fused_model_loss(model, loss)
 
     def forward(self, x):
@@ -159,7 +158,7 @@ class Model(pl.LightningModule):
     def predict_step(self, batch, batch_idx):
         video, y = batch
         with torch.inference_mode():
-            preds = self.forward(video)
+            preds = self.forward(video).sigmoid()
             preds = (preds * 255).to(torch.uint8)
             y = (y * 255).to(torch.uint8)
         return preds, y

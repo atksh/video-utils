@@ -748,7 +748,7 @@ class Decoder(nn.Module):
         z = self.fc(z)
         z = self.resize(z)
         z = self.scale(z, size)
-        return z.sigmoid()
+        return z
 
 
 class VideoModel(nn.Module):
