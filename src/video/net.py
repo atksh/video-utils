@@ -159,7 +159,7 @@ class Model(pl.LightningModule):
     def forward(self, video):
         feats = self.encoder(video)
         y = self.decoder(video, feats)
-        return y[:, [-1]]
+        return y
 
     def training_step(self, batch, batch_idx):
         x, y = batch

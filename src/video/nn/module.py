@@ -5,6 +5,7 @@ from typing import List, Tuple, Union
 import revlib
 import torch
 import torch.nn.functional as F
+from functorch.compile import memory_efficient_fusion
 from torch import nn
 from torchtyping import TensorType as TT
 
@@ -337,7 +338,7 @@ class ResidualSequential(nn.Module):
     def __init__(self, layers, split_dim):
         super().__init__()
         self.split_dim = split_dim
-        # layers = [memory_efficient_fusion(layer) for layer in layers]
+        layers = [memory_efficient_fusion(layer) for layer in layers]
         self.layers = revlib.ReversibleSequential(*layers, split_dim=split_dim)
         self.s = nn.Parameter(torch.zeros(1))
         self.sigmoid = nn.Sigmoid()
@@ -579,12 +580,17 @@ class Decoder(nn.Module):
         self.last_up = Upsample3D(out_widths[-1])
         self.fc = ImageWise(SameConv2d(out_widths[-1] + out_ch, out_ch, 1))
 
+    def duplicate_last(self, x: VideoTensor) -> VideoTensor:
+        return torch.cat([x, x[:, [-1]]], dim=1)
+
     def forward(self, x: VideoTensor, feats: List[VideoTensor]) -> VideoTensor:
+        x = self.duplicate_last(x)
+        feats = [self.duplicate_last(feat) for feat in feats]
         z = feats[-1]
         feats = feats[::-1][1:]
         assert len(feats) == len(self.stages)
         for stage, feat in zip(self.stages, feats):
             z = stage(z, feat)
         z = self.last_up(z, x)
-        z = self.fc(z)
+        z = self.fc(z)[:, [-1]]
         return z
