@@ -3,7 +3,7 @@ skip_rate = 5
 max_len = 8
 num_workers = 8
 
-train_batch_size = 5
+train_batch_size = 8
 predict_batch_size = 1
 accumulate_grad_batchs = 4
 fps = 30
