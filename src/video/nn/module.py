@@ -173,9 +173,9 @@ class Upsample3D(nn.Module):
 
 
 class LayerScale(nn.Module):
-    def __init__(self, initial_value: float = 1.0):
+    def __init__(self, initial_scale: float = 1e-6):
         super().__init__()
-        self.scale = nn.Parameter(torch.tensor(initial_value))
+        self.scale = nn.Parameter(torch.tensor(initial_scale))
 
     def forward(self, x: TT[...]) -> TT[...]:
         return x * self.scale
@@ -351,7 +351,7 @@ def make_block(
     layer_type: LayerType,
     block_size: int = 8,
     eps: float = 1e-5,
-    initial_value: float = 1.0,
+    initial_scale: float = 1e-6,
     drop_prob: float = 0.0,
     add_prenorm: bool = True,
     add_layer_scale: bool = True,
@@ -362,7 +362,7 @@ def make_block(
         out.append(wrap_layer(LayerNorm(dim, eps), LayerType.channel, block_size))
     out.append(wrap_layer(module, layer_type, block_size))
     if add_layer_scale:
-        out.append(LayerScale(initial_value))
+        out.append(LayerScale(initial_scale))
     if add_droppath:
         out.append(DropPath(drop_prob))
     return nn.Sequential(*out)
@@ -396,7 +396,7 @@ class Stage(nn.Module):
         head_dim: int = 32,
         block_size: int = 8,
         eps: float = 1e-5,
-        initial_value: float = 1.0,
+        initial_scale: float = 1e-6,
         drop_prob: float = 0.0,
     ):
         super().__init__()
@@ -404,7 +404,7 @@ class Stage(nn.Module):
         self.depth = depth
         self.block_size = block_size
         self.eps = eps
-        self.initial_value = initial_value
+        self.initial_scale = initial_scale
         self.drop_prob = drop_prob
 
         layers = []
@@ -487,7 +487,7 @@ class Stage(nn.Module):
             layer_type,
             self.block_size,
             self.eps,
-            self.initial_value,
+            self.initial_scale,
             self.drop_prob,
             add_prenorm,
             add_layer_scale,
@@ -510,7 +510,7 @@ class DownStage(nn.Module):
         head_dim: int = 32,
         block_size: int = 8,
         eps: float = 1e-5,
-        initial_value: float = 1.0,
+        initial_scale: float = 1e-6,
         drop_prob: float = 0.0,
     ):
         super().__init__()
@@ -524,7 +524,7 @@ class DownStage(nn.Module):
             head_dim,
             block_size,
             eps,
-            initial_value,
+            initial_scale,
             drop_prob,
         )
 
@@ -547,7 +547,7 @@ class UpStage(nn.Module):
         head_dim: int = 32,
         block_size: int = 8,
         eps: float = 1e-5,
-        initial_value: float = 1.0,
+        initial_scale: float = 1e-6,
         drop_prob: float = 0.0,
     ):
         super().__init__()
@@ -561,7 +561,7 @@ class UpStage(nn.Module):
             head_dim,
             block_size,
             eps,
-            initial_value,
+            initial_scale,
             drop_prob,
         )
 
@@ -583,7 +583,7 @@ class Encoder(nn.Module):
         block_sizes: List[int],
         kernel_sizes: List[int],
         eps: float = 1e-5,
-        initial_value: float = 1.0,
+        initial_scale: float = 1e-6,
         drop_prob: float = 0.0,
     ):
         super().__init__()
@@ -602,7 +602,7 @@ class Encoder(nn.Module):
                     head_width,
                     block_size,
                     eps,
-                    initial_value,
+                    initial_scale,
                     drop_prob,
                 )
             )
@@ -630,7 +630,7 @@ class Decoder(nn.Module):
         block_sizes: List[int],
         kernel_sizes: List[int],
         eps: float = 1e-5,
-        initial_value: float = 1.0,
+        initial_scale: float = 1e-6,
         drop_prob: float = 0.0,
     ):
         super().__init__()
@@ -665,7 +665,7 @@ class Decoder(nn.Module):
                     head_width,
                     block_size,
                     eps,
-                    initial_value,
+                    initial_scale,
                     drop_prob,
                 )
             )
