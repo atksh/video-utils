@@ -13,19 +13,21 @@ ImageTensor = TT["batch", "channel", "height", "width"]
 VideoTensor = TT["batch", "time", "channel", "height", "width"]
 
 
-class EfficientChannelAttention(nn.Module):
-    def __init__(self, kernel_size: int = 3):
+class SELayer:
+    def __init__(self, in_channels: int, reduction: int = 16):
         super().__init__()
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
-        self.conv = nn.Conv1d(
-            1, 1, kernel_size=kernel_size, padding=(kernel_size - 1) // 2, bias=False
+        self.fc = nn.Sequential(
+            nn.Linear(in_channels, in_channels // reduction, bias=False),
+            nn.SiLU(),
+            nn.Linear(in_channels // reduction, in_channels, bias=False),
+            nn.Sigmoid(),
         )
-        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x: ImageTensor) -> ImageTensor:
-        y = self.avg_pool(x)
-        y = self.conv(y.squeeze(-1).transpose(-1, -2)).transpose(-1, -2).unsqueeze(-1)
-        y = self.sigmoid(y)
+        b, c, _, _ = x.size()
+        y = self.avg_pool(x).view(b, c)
+        y = self.fc(y).view(b, c, 1, 1)
         return x * y.expand_as(x)
 
 
@@ -446,21 +448,21 @@ class Stage(nn.Module):
             layers.append((LayerType.channel, FeedForward(dim), True, True, True))
             layers.append(
                 (
-                    LayerType.block,
-                    EfficientChannelAttention(kernel_size=7),
-                    False,
-                    False,
-                    False,
-                )
-            )
-            layers.append(
-                (
                     LayerType.image,
-                    EfficientChannelAttention(kernel_size=3),
+                    SELayer(dim),
                     False,
                     False,
                     False,
-                )
+                ),
+                layers.append(
+                    (
+                        LayerType.block,
+                        SELayer(dim),
+                        False,
+                        False,
+                        False,
+                    )
+                ),
             )
 
         layers = [self.make_block(*args) for args in layers]
