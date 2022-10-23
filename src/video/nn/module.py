@@ -543,7 +543,7 @@ class DownStage(nn.Module):
         reversible: bool = False,
     ):
         super().__init__()
-        self.proj = ImageWise(SameConv2d(in_dim, out_dim, 1))
+        self.proj = ImageWise(SameConv2d(in_dim, out_dim, 1, bias=True))
         self.down = Downsample3D(out_dim)
         self.stage = Stage(
             out_dim,
@@ -585,7 +585,7 @@ class UpStage(nn.Module):
     ):
         super().__init__()
         self.up = Upsample3D(in_dim)
-        self.proj = ImageWise(SameConv2d(in_dim + add_dim, out_dim, 1))
+        self.proj = ImageWise(SameConv2d(in_dim + add_dim, out_dim, 1, bias=True))
         self.stage = Stage(
             out_dim,
             depth,
@@ -720,10 +720,12 @@ class Decoder(nn.Module):
             )
 
         self.stages = nn.ModuleList(stages)
-        self.fc = ImageWise(SameConv2d(out_widths[-1], out_ch, 1))
+        self.fc = ImageWise(SameConv2d(out_widths[-1], out_ch, 1, bias=True))
         self.resize = nn.Sequential(
             ImageWise(
-                SameConv2d(out_ch, out_ch * (self.resolution_scale**2), out_ch, 1)
+                SameConv2d(
+                    out_ch, out_ch * (self.resolution_scale**2), out_ch, 1, bias=True
+                )
             ),
             ImageWise(nn.PixelShuffle(self.resolution_scale)),
         )
