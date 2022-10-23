@@ -5,7 +5,6 @@ from typing import List, Tuple, Union
 import revlib
 import torch
 import torch.nn.functional as F
-from functorch.compile import memory_efficient_fusion
 from torch import nn
 from torchtyping import TensorType as TT
 
@@ -94,7 +93,7 @@ class LinearAttention(nn.Module):
         return out
 
 
-class Norm(nn.Module):
+class RMSNorm(nn.Module):
     def __init__(self, dim: int, eps: float = 1e-6):
         super().__init__()
         self.eps = eps
@@ -105,6 +104,21 @@ class Norm(nn.Module):
     def forward(self, x: ChannelTensor) -> ChannelTensor:
         x = F.normalize(x, dim=1, eps=self.eps)
         x = x * self.gamma * self.scale + self.beta
+        return x
+
+
+class LayerNorm(nn.Module):
+    def __init__(self, dim: int, eps: float = 1e-6):
+        super().__init__()
+        self.eps = eps
+        self.gamma = nn.Parameter(torch.ones((1, dim, 1)))
+        self.beta = nn.Parameter(torch.zeros((1, dim, 1)))
+
+    def forward(self, x: ChannelTensor) -> ChannelTensor:
+        mu = x.mean(dim=1, keepdim=True)
+        var = x.var(dim=1, keepdim=True)
+        x = (x - mu) / torch.sqrt(var + self.eps)
+        x = x * self.gamma + self.beta
         return x
 
 
@@ -344,7 +358,7 @@ def make_block(
 ) -> nn.Module:
     out = []
     if add_prenorm:
-        out.append(wrap_layer(Norm(dim, eps), LayerType.channel, block_size))
+        out.append(wrap_layer(LayerNorm(dim, eps), LayerType.channel, block_size))
     out.append(wrap_layer(module, layer_type, block_size))
     if add_layer_scale:
         out.append(LayerScale(initial_value))
@@ -357,7 +371,6 @@ class ResidualSequential(nn.Module):
     def __init__(self, layers, split_dim):
         super().__init__()
         self.split_dim = split_dim
-        layers = [memory_efficient_fusion(layer) for layer in layers]
         self.layers = revlib.ReversibleSequential(*layers, split_dim=split_dim)
         self.s = nn.Parameter(torch.zeros(1))
         self.sigmoid = nn.Sigmoid()
