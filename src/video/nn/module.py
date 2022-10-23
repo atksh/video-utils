@@ -415,9 +415,10 @@ class Stage(nn.Module):
             layers.append(
                 (
                     LayerType.block,
-                    ChannelWise(
-                        LinearAttention(dim, heads, head_dim), True, True, True
-                    ),
+                    ChannelWise(LinearAttention(dim, heads, head_dim)),
+                    True,
+                    True,
+                    True,
                 )
             )
             layers.append(
