@@ -602,17 +602,8 @@ class Encoder(nn.Module):
         self.stages = nn.ModuleList(stages)
         self.resize = ImageWise(nn.PixelUnshuffle(self.resolution_scale))
 
-    def scale(self, x: VideoTensor) -> VideoTensor:
-        b, t, _, *size = x.shape
-        x = x.view(b * t, *x.shape[2:])
-        new_size = [int(s / self.resolution_scale) for s in size]
-        x = F.interpolate(x, new_size, mode="bilinear", align_corners=True)
-        x = x.view(b, t, *x.shape[1:])
-        return x
-
     def forward(self, x: VideoTensor) -> List[VideoTensor]:
         x = self.resize(x)
-        x = self.scale(x)
         feats = []
         for stage in self.stages:
             x = stage(x)
