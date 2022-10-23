@@ -1,11 +1,11 @@
 resolution = "448:252"
-skip_rate = 1
+skip_rate = 5
 max_len = 8
 num_workers = 8
 
 train_batch_size = 8
 predict_batch_size = 1
-accumulate_grad_batchs = 2
+accumulate_grad_batchs = 1
 fps = 30
 n_steps = 1
 
