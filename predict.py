@@ -44,6 +44,7 @@ if __name__ == "__main__":
         block_sizes=block_sizes,
         kernel_sizes=kernel_sizes,
         dec_depths=dec_depths,
+        resolution_scale=resolution_scale,
     )
     model.eval()
 

@@ -575,8 +575,10 @@ class Encoder(nn.Module):
         eps: float = 1e-5,
         initial_scale: float = 1.0,
         drop_prob: float = 0.0,
+        resolution_scale: int = 1,
     ):
         super().__init__()
+        self.resolution_scale = resolution_scale
         in_widths = [in_ch] + widths[:-1]
         stages = []
         for in_width, width, depth, head, head_width, block_size, kernel_size in zip(
@@ -599,7 +601,16 @@ class Encoder(nn.Module):
 
         self.stages = nn.ModuleList(stages)
 
+    def scale(self, x: VideoTensor) -> VideoTensor:
+        b, t, _, *size = x.shape
+        x = x.view(b * t, *x.shape[2:])
+        new_size = [int(s / self.resolution_scale) for s in size]
+        x = F.interpolate(x, new_size, mode="bilinear", align_corners=True)
+        x = x.view(b, t, *x.shape[1:])
+        return x
+
     def forward(self, x: VideoTensor) -> List[VideoTensor]:
+        x = self.scale(x)
         feats = []
         for stage in self.stages:
             x = stage(x)
@@ -622,8 +633,10 @@ class Decoder(nn.Module):
         eps: float = 1e-5,
         initial_scale: float = 1.0,
         drop_prob: float = 0.0,
+        resolution_scale: int = 1,
     ):
         super().__init__()
+        self.resolution_scale = resolution_scale
         stages = []
         for (
             in_width,
@@ -663,10 +676,19 @@ class Decoder(nn.Module):
         self.stages = nn.ModuleList(stages)
         self.fc = ImageWise(SameConv2d(out_widths[-1], out_ch, 1))
 
+    def scale(self, x: VideoTensor, size: Tuple[int, int]) -> VideoTensor:
+        x = x.view(b * t, *x.shape[2:])
+        new_size = [int(s * self.resolution_scale) for s in size]
+        x = F.interpolate(x, new_size, mode="bilinear", align_corners=True)
+        x = x.view(b, t, *x.shape[1:])
+        return x
+
     def duplicate_last(self, x: VideoTensor) -> VideoTensor:
         return torch.cat([x, x[:, [-1]]], dim=1)
 
     def forward(self, x: VideoTensor, feats: List[VideoTensor]) -> VideoTensor:
+        size = x.shape[-2:]
+        x = self.scale(x)
         x = self.duplicate_last(x)
         feats = [self.duplicate_last(feat) for feat in feats]
         z = feats[-1]
@@ -674,5 +696,6 @@ class Decoder(nn.Module):
         for stage, feat in zip(self.stages, feats + [x]):
             z = stage(z, feat)
         z = z[:, [-1]]
-        z = self.fc(z)
-        return z.sigmoid()
+        z = self.fc(z).sigmoid()
+        z = self.scale(z, size)
+        return z

@@ -123,6 +123,7 @@ class Model(pl.LightningModule):
         block_sizes,
         kernel_sizes,
         dec_depths,
+        resolution_scale,
     ):
         super().__init__()
         in_widths = widths[::-1]
@@ -141,6 +142,7 @@ class Model(pl.LightningModule):
             head_widths=head_widths,
             block_sizes=block_sizes,
             kernel_sizes=kernel_sizes,
+            resolution_scale=resolution_scale,
         )
 
         self.decoder = Decoder(
@@ -153,6 +155,7 @@ class Model(pl.LightningModule):
             head_widths=dec_head_widths,
             block_sizes=dec_block_sizes,
             kernel_sizes=dec_kernel_sizes,
+            resolution_scale=resolution_scale,
         )
 
         self.loss = MSSSIML1Loss()

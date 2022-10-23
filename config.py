@@ -18,3 +18,4 @@ head_widths = [16, 16, 32, 32, 32]
 block_sizes = [8, 8, 8, 4, 4]
 kernel_sizes = [7, 7, 5, 5, 3]
 dec_depths = [1, 1, 1, 1, 1]
+resolution_scale = 4
