@@ -125,12 +125,13 @@ class Model(pl.LightningModule):
         dec_depths,
     ):
         super().__init__()
-        in_widths = widths[1:][::-1]
-        add_widths = out_widths = widths[:-1][::-1]
-        dec_heads = heads[:-1][::-1]
-        dec_head_widths = head_widths[:-1][::-1]
-        dec_block_sizes = block_sizes[:-1][::-1]
-        dec_kernel_sizes = kernel_sizes[:-1][::-1]
+        in_widths = widths[::-1]
+        add_widths = widths[:-1][::-1] + [in_ch]
+        out_widths = in_widths[1:] + [in_widths[-1]]
+        dec_heads = heads[:-1][::-1] + [heads[0]]
+        dec_head_widths = head_widths[:-1][::-1] + [head_widths[0]]
+        dec_block_sizes = block_sizes[:-1][::-1] + [block_sizes[0]]
+        dec_kernel_sizes = kernel_sizes[:-1][::-1] + [kernel_sizes[0]]
 
         self.encoder = Encoder(
             in_ch=in_ch,

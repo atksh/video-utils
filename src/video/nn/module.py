@@ -577,9 +577,7 @@ class Decoder(nn.Module):
             )
 
         self.stages = nn.ModuleList(stages)
-        self.last_up = Upsample3D(out_widths[-1])
-        last_width = out_widths[-1] + out_ch
-        self.fc = ImageWise(SameConv2d(last_width, out_ch, 1))
+        self.fc = ImageWise(SameConv2d(out_widths[-1], out_ch, 1))
 
     def duplicate_last(self, x: VideoTensor) -> VideoTensor:
         return torch.cat([x, x[:, [-1]]], dim=1)
@@ -589,9 +587,8 @@ class Decoder(nn.Module):
         feats = [self.duplicate_last(feat) for feat in feats]
         z = feats[-1]
         feats = feats[::-1][1:]
-        assert len(feats) == len(self.stages)
-        for stage, feat in zip(self.stages, feats):
+        for stage, feat in zip(self.stages, feats + [x]):
             z = stage(z, feat)
-        z = self.last_up(z, x)
-        z = self.fc(z)[:, [-1]]
-        return z
+        z = z[:, [-1]]
+        z = self.fc(z)
+        return z.sigmoid()
