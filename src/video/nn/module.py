@@ -675,11 +675,17 @@ class Decoder(nn.Module):
 
         self.stages = nn.ModuleList(stages)
         self.fc = ImageWise(SameConv2d(out_widths[-1], out_ch, 1))
+        self.resize = nn.Sequential(
+            ImageWise(
+                SameConv2d(out_ch, out_ch * (self.resolution_scale**2), out_ch, 1)
+            ),
+            ImageWise(nn.PixelShuffle(self.resolution_scale)),
+        )
 
     def scale(self, x: VideoTensor, size: Tuple[int, int]) -> VideoTensor:
+        b, t = x.shape[:2]
         x = x.view(b * t, *x.shape[2:])
-        new_size = [int(s * self.resolution_scale) for s in size]
-        x = F.interpolate(x, new_size, mode="bilinear", align_corners=True)
+        x = F.interpolate(x, size, mode="bilinear", align_corners=True)
         x = x.view(b, t, *x.shape[1:])
         return x
 
@@ -695,6 +701,7 @@ class Decoder(nn.Module):
         for stage, feat in zip(self.stages, feats + [x]):
             z = stage(z, feat)
         z = z[:, [-1]]
-        z = self.fc(z).sigmoid()
+        z = self.fc(z)
+        z = self.resize(z)
         z = self.scale(z, size)
-        return z
+        return z.sigmoid()
