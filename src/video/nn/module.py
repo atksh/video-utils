@@ -118,6 +118,19 @@ class Downsample(nn.Module):
         return self.norm(self.conv(x))
 
 
+class Downsample3D(nn.Module):
+    def __init__(self, dim: int):
+        super().__init__()
+        self.down = Downsample(dim)
+
+    def forward(self, x: VideoTensor) -> VideoTensor:
+        b, t = x.shape[:2]
+        x = x.view(b * t, *x.shape[2:])
+        x = self.down(x)
+        x = x.view(b, t, *x.shape[1:])
+        return x
+
+
 class Upsample(nn.Module):
     def __init__(self, dim: int):
         super().__init__()
@@ -325,13 +338,19 @@ def make_block(
     eps: float = 1e-6,
     initial_value: float = 1.0,
     drop_prob: float = 0.0,
+    add_prenorm: bool = True,
+    add_layer_scale: bool = True,
+    add_droppath: bool = True,
 ) -> nn.Module:
-    return nn.Sequential(
-        wrap_layer(Norm(dim, eps), LayerType.channel, block_size),
-        wrap_layer(module, layer_type, block_size),
-        LayerScale(initial_value),
-        DropPath(drop_prob),
-    )
+    out = []
+    if add_prenorm:
+        out.append(wrap_layer(Norm(dim, eps), LayerType.channel, block_size))
+    out.append(wrap_layer(module, layer_type, block_size))
+    if add_layer_scale:
+        out.append(LayerScale(initial_value))
+    if add_droppath:
+        out.append(DropPath(drop_prob))
+    return nn.Sequential(*out)
 
 
 class ResidualSequential(nn.Module):
@@ -374,22 +393,77 @@ class Stage(nn.Module):
 
         layers = []
         for _ in range(depth):
-            layers.append((LayerType.time, TimeConv(dim))),
-            layers.append((LayerType.image, SameConv2d(dim, dim, kernel_size, dim)))
-            layers.append((LayerType.time, LinearAttention(dim, heads, head_dim)))
+            layers.append((LayerType.time, TimeConv(dim), False, False, False)),
             layers.append(
-                (LayerType.block, ChannelWise(LinearAttention(dim, heads, head_dim)))
+                (
+                    LayerType.image,
+                    SameConv2d(dim, dim, kernel_size, dim),
+                    False,
+                    False,
+                    False,
+                )
             )
-            layers.append((LayerType.height, LinearAttention(dim, heads, head_dim)))
-            layers.append((LayerType.width, LinearAttention(dim, heads, head_dim)))
-            layers.append((LayerType.channel, FeedForward(dim)))
-            layers.append((LayerType.block, EfficientChannelAttention(kernel_size=7)))
-            layers.append((LayerType.image, EfficientChannelAttention(kernel_size=3)))
+            layers.append(
+                (
+                    LayerType.time,
+                    LinearAttention(dim, heads, head_dim),
+                    True,
+                    True,
+                    True,
+                )
+            )
+            layers.append(
+                (
+                    LayerType.block,
+                    ChannelWise(
+                        LinearAttention(dim, heads, head_dim), True, True, True
+                    ),
+                )
+            )
+            layers.append(
+                (
+                    LayerType.height,
+                    LinearAttention(dim, heads, head_dim),
+                    True,
+                    True,
+                    True,
+                )
+            )
+            layers.append(
+                (
+                    LayerType.width,
+                    LinearAttention(dim, heads, head_dim),
+                    True,
+                    True,
+                    True,
+                )
+            )
+            layers.append((LayerType.channel, FeedForward(dim), True, True, True))
+            layers.append(
+                (
+                    LayerType.block,
+                    EfficientChannelAttention(kernel_size=7),
+                    False,
+                    False,
+                    False,
+                )
+            )
+            layers.append(
+                (
+                    LayerType.image,
+                    EfficientChannelAttention(kernel_size=3),
+                    False,
+                    False,
+                    False,
+                )
+            )
 
-        layers = [self.make_block(layer_type, module) for layer_type, module in layers]
+        layers = [self.make_block(*args) for args in layers]
         self.layers = ResidualSequential(layers, split_dim=2)
 
-    def make_block(self, layer_type, module):
+    def make_block(
+        self, layer_type, module, add_prenorm, add_layer_scale, add_droppath
+    ):
         return make_block(
             module,
             self.dim,
@@ -398,6 +472,9 @@ class Stage(nn.Module):
             self.eps,
             self.initial_value,
             self.drop_prob,
+            add_prenorm,
+            add_layer_scale,
+            add_droppath,
         )
 
     def forward(self, x: VideoTensor) -> VideoTensor:
@@ -421,7 +498,7 @@ class DownStage(nn.Module):
     ):
         super().__init__()
         self.proj = ImageWise(SameConv2d(in_dim, out_dim, 1))
-        self.down = ImageWise(Downsample(out_dim))
+        self.down = Downsample3D(out_dim)
         self.stage = Stage(
             out_dim,
             depth,
