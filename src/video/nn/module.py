@@ -606,7 +606,7 @@ class Encoder(nn.Module):
 
     def forward(self, x: VideoTensor) -> List[VideoTensor]:
         x = self.resize(x)
-        feats = []
+        feats = [x]
         for stage in self.stages:
             x = stage(x)
             feats.append(x)
@@ -687,13 +687,12 @@ class Decoder(nn.Module):
     def duplicate_last(self, x: VideoTensor) -> VideoTensor:
         return torch.cat([x, x[:, [-1]]], dim=1)
 
-    def forward(self, x: VideoTensor, feats: List[VideoTensor]) -> VideoTensor:
+    def forward(self, feats: List[VideoTensor], size: Tuple[int, int]) -> VideoTensor:
         size = x.shape[-2:]
-        x = self.duplicate_last(x)
         feats = [self.duplicate_last(feat) for feat in feats]
         z = feats[-1]
         feats = feats[::-1][1:]
-        for stage, feat in zip(self.stages, feats + [x]):
+        for stage, feat in zip(self.stages, feats):
             z = stage(z, feat)
         z = z[:, [-1]]
         z = self.fc(z)

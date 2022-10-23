@@ -161,8 +161,9 @@ class Model(pl.LightningModule):
         self.loss = MSSSIML1Loss()
 
     def forward(self, video):
+        size = video.shape[-2:]
         feats = self.encoder(video)
-        y = self.decoder(video, feats)
+        y = self.decoder(feats, size)
         return y
 
     def training_step(self, batch, batch_idx):
