@@ -5,7 +5,6 @@ from typing import List, Tuple, Union
 import revlib
 import torch
 import torch.nn.functional as F
-from functorch.compile import memory_efficient_fusion
 from torch import nn
 from torchtyping import TensorType as TT
 
@@ -145,7 +144,7 @@ class Upsample3D(nn.Module):
 
 
 class LayerScale(nn.Module):
-    def __init__(self, initial_value: float = 1e-6):
+    def __init__(self, initial_value: float = 1.0):
         super().__init__()
         self.scale = nn.Parameter(torch.tensor(initial_value))
 
@@ -323,7 +322,7 @@ def make_block(
     layer_type: LayerType,
     block_size: int = 8,
     eps: float = 1e-6,
-    initial_value: float = 1e-6,
+    initial_value: float = 1.0,
     drop_prob: float = 0.0,
 ) -> nn.Module:
     return nn.Sequential(
@@ -338,7 +337,7 @@ class ResidualSequential(nn.Module):
     def __init__(self, layers, split_dim):
         super().__init__()
         self.split_dim = split_dim
-        layers = [memory_efficient_fusion(layer) for layer in layers]
+        # layers = [memory_efficient_fusion(layer) for layer in layers]
         self.layers = revlib.ReversibleSequential(*layers, split_dim=split_dim)
         self.s = nn.Parameter(torch.zeros(1))
         self.sigmoid = nn.Sigmoid()
@@ -361,7 +360,7 @@ class Stage(nn.Module):
         head_dim: int = 32,
         block_size: int = 8,
         eps: float = 1e-6,
-        initial_value: float = 1e-6,
+        initial_value: float = 1.0,
         drop_prob: float = 0.0,
     ):
         super().__init__()
@@ -416,7 +415,7 @@ class DownStage(nn.Module):
         head_dim: int = 32,
         block_size: int = 8,
         eps: float = 1e-6,
-        initial_value: float = 1e-6,
+        initial_value: float = 1.0,
         drop_prob: float = 0.0,
     ):
         super().__init__()
@@ -453,7 +452,7 @@ class UpStage(nn.Module):
         head_dim: int = 32,
         block_size: int = 8,
         eps: float = 1e-6,
-        initial_value: float = 1e-6,
+        initial_value: float = 1.0,
         drop_prob: float = 0.0,
     ):
         super().__init__()
@@ -489,7 +488,7 @@ class Encoder(nn.Module):
         block_sizes: List[int],
         kernel_sizes: List[int],
         eps: float = 1e-6,
-        initial_value: float = 1e-6,
+        initial_value: float = 1.0,
         drop_prob: float = 0.0,
     ):
         super().__init__()
@@ -536,7 +535,7 @@ class Decoder(nn.Module):
         block_sizes: List[int],
         kernel_sizes: List[int],
         eps: float = 1e-6,
-        initial_value: float = 1e-6,
+        initial_value: float = 1.0,
         drop_prob: float = 0.0,
     ):
         super().__init__()
