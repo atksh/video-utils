@@ -688,7 +688,6 @@ class Decoder(nn.Module):
         return torch.cat([x, x[:, [-1]]], dim=1)
 
     def forward(self, feats: List[VideoTensor], size: Tuple[int, int]) -> VideoTensor:
-        size = x.shape[-2:]
         feats = [self.duplicate_last(feat) for feat in feats]
         z = feats[-1]
         feats = feats[::-1][1:]

@@ -127,7 +127,7 @@ class Model(pl.LightningModule):
     ):
         super().__init__()
         in_widths = widths[::-1]
-        add_widths = widths[:-1][::-1] + [in_ch]
+        add_widths = widths[:-1][::-1] + [in_ch * (resolution_scale**2)]
         out_widths = in_widths[1:] + [in_widths[-1]]
         dec_heads = heads[:-1][::-1] + [heads[0]]
         dec_head_widths = head_widths[:-1][::-1] + [head_widths[0]]
