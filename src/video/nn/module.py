@@ -1,5 +1,5 @@
 import enum
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import revlib
 import torch
@@ -808,3 +808,21 @@ class VideoModel(nn.Module):
         size = x.shape[-2:]
         feats = self.encoder(x)
         return self.decoder(feats, size)
+
+
+class ModelWithLoss(nn.Module):
+    def __init__(self, model: nn.Module, loss: nn.Module):
+        super().__init__()
+        self.model = model
+        self.loss = loss
+
+    def forward(self, x: VideoTensor, y: Optional[VideoTensor] = None) -> VideoTensor:
+        y_hat = self.model(x)
+        if y is not None:
+            return self.loss(y_hat, y)
+        else:
+            return y_hat
+
+
+def make_fused_model_loss(model: nn.Module, loss: nn.Module):
+    return memory_efficient_fusion(ModelWithLoss(model, loss))

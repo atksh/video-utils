@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from .dataset import VideoDataset
 from .nn.loss import MSSSIML1Loss
-from .nn.module import VideoModel
+from .nn.module import VideoModel, make_fused_model_loss
 
 
 class DataModule(pl.LightningDataModule):
@@ -126,7 +126,7 @@ class Model(pl.LightningModule):
         resolution_scale,
     ):
         super().__init__()
-        self.model = VideoModel(
+        model = VideoModel(
             in_ch,
             out_ch,
             widths,
@@ -138,22 +138,21 @@ class Model(pl.LightningModule):
             dec_depths,
             resolution_scale,
         )
-        self.loss = MSSSIML1Loss()
+        loss = MSSSIML1Loss()
+        self.model_loss = make_fused_model_loss(model, loss)
 
-    def forward(self, video):
-        return self.model(video)
+    def forward(self, x):
+        return self.model_loss(x)
 
     def training_step(self, batch, batch_idx):
         x, y = batch
-        pred = self.forward(x)
-        loss = self.loss(pred, y)
+        loss = self.model_loss(x, y)
         self.log("train_loss", loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
-        pred = self.forward(x)
-        loss = self.loss(pred, y)
+        loss = self.model_loss(x, y)
         self.log("val_loss", loss)
         return loss
 
