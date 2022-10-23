@@ -5,6 +5,7 @@ from typing import List, Tuple, Union
 import revlib
 import torch
 import torch.nn.functional as F
+from functorch.compile import memory_efficient_fusion
 from torch import nn
 from torchtyping import TensorType as TT
 
@@ -94,7 +95,7 @@ class LinearAttention(nn.Module):
 
 
 class RMSNorm(nn.Module):
-    def __init__(self, dim: int, eps: float = 1e-6):
+    def __init__(self, dim: int, eps: float = 1e-5):
         super().__init__()
         self.eps = eps
         self.scale = math.sqrt(dim)
@@ -108,17 +109,17 @@ class RMSNorm(nn.Module):
 
 
 class LayerNorm(nn.Module):
-    def __init__(self, dim: int, eps: float = 1e-6):
+    def __init__(self, dim: int, eps: float = 1e-5):
         super().__init__()
         self.eps = eps
-        self.gamma = nn.Parameter(torch.ones((1, dim, 1)))
-        self.beta = nn.Parameter(torch.zeros((1, dim, 1)))
+        self.normalized_shape = (dim,)
+        self.gamma = nn.Parameter(torch.ones(dim))
+        self.beta = nn.Parameter(torch.zeros(dim))
 
     def forward(self, x: ChannelTensor) -> ChannelTensor:
-        mu = x.mean(dim=1, keepdim=True)
-        var = x.var(dim=1, keepdim=True)
-        x = (x - mu) / torch.sqrt(var + self.eps)
-        x = x * self.gamma + self.beta
+        x = x.permute(0, 2, 1)
+        x = F.layer_norm(x, self.normalized_shape, self.gamma, self.beta, self.eps)
+        x = x.permute(0, 2, 1)
         return x
 
 
@@ -205,7 +206,7 @@ class Blockify(nn.Module):
         self, x: ImageTensor
     ) -> TT["batch", "channel", "num_blocks", "block_heigh", "block_width"]:
         b, c, h, w = x.shape
-        x = x.view(b * c, 1, h, w)
+        x = x.contiguous().view(b * c, 1, h, w)
         x = F.unfold(x, self.block_size, stride=self.block_size)
         x = x.transpose(1, 2).contiguous()
         x = x.view(b, c, -1, *self.block_size)
@@ -349,7 +350,7 @@ def make_block(
     dim: int,
     layer_type: LayerType,
     block_size: int = 8,
-    eps: float = 1e-6,
+    eps: float = 1e-5,
     initial_value: float = 1.0,
     drop_prob: float = 0.0,
     add_prenorm: bool = True,
@@ -368,9 +369,11 @@ def make_block(
 
 
 class ResidualSequential(nn.Module):
-    def __init__(self, layers, split_dim):
+    def __init__(self, layers, split_dim, fuse: bool = True):
         super().__init__()
         self.split_dim = split_dim
+        if fuse:
+            layers = [memory_efficient_fusion(layer) for layer in layers]
         self.layers = revlib.ReversibleSequential(*layers, split_dim=split_dim)
         self.s = nn.Parameter(torch.zeros(1))
         self.sigmoid = nn.Sigmoid()
@@ -392,7 +395,7 @@ class Stage(nn.Module):
         heads: int = 4,
         head_dim: int = 32,
         block_size: int = 8,
-        eps: float = 1e-6,
+        eps: float = 1e-5,
         initial_value: float = 1.0,
         drop_prob: float = 0.0,
     ):
@@ -506,7 +509,7 @@ class DownStage(nn.Module):
         heads: int = 4,
         head_dim: int = 32,
         block_size: int = 8,
-        eps: float = 1e-6,
+        eps: float = 1e-5,
         initial_value: float = 1.0,
         drop_prob: float = 0.0,
     ):
@@ -543,7 +546,7 @@ class UpStage(nn.Module):
         heads: int = 4,
         head_dim: int = 32,
         block_size: int = 8,
-        eps: float = 1e-6,
+        eps: float = 1e-5,
         initial_value: float = 1.0,
         drop_prob: float = 0.0,
     ):
@@ -579,7 +582,7 @@ class Encoder(nn.Module):
         head_widths: List[int],
         block_sizes: List[int],
         kernel_sizes: List[int],
-        eps: float = 1e-6,
+        eps: float = 1e-5,
         initial_value: float = 1.0,
         drop_prob: float = 0.0,
     ):
@@ -626,7 +629,7 @@ class Decoder(nn.Module):
         head_widths: List[int],
         block_sizes: List[int],
         kernel_sizes: List[int],
-        eps: float = 1e-6,
+        eps: float = 1e-5,
         initial_value: float = 1.0,
         drop_prob: float = 0.0,
     ):
