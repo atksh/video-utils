@@ -732,11 +732,14 @@ class Decoder(nn.Module):
             )
 
         self.stages = nn.ModuleList(stages)
-        self.fc = ImageWise(SameConv2d(out_widths[-1], out_ch, 1, bias=True))
         self.resize = ImageWise(
             nn.Sequential(
                 SameConv2d(
-                    out_ch, out_ch * (self.resolution_scale**2), out_ch, 1, bias=True
+                    out_widths[-1],
+                    out_ch * (self.resolution_scale**2),
+                    out_ch,
+                    1,
+                    bias=True,
                 ),
                 nn.PixelShuffle(self.resolution_scale),
             )
@@ -765,8 +768,8 @@ class Decoder(nn.Module):
         feats = feats[::-1][1:]
         for stage, feat in zip(self.stages, feats):
             z = stage(z, feat)
+
         z = z[:, [-1]]
-        z = self.fc(z)
         z = self.resize(z)
         z = self.scale(z, size)
         z = self.soft_clip(z)
