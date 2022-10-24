@@ -7,6 +7,7 @@ from adabelief_pytorch import AdaBelief
 from tqdm import tqdm
 
 from .dataset import VideoDataset
+from .nn.loss import MSSSIML1Loss
 from .nn.module import VideoModel, make_fused_model_loss
 
 
@@ -137,7 +138,7 @@ class Model(pl.LightningModule):
             dec_depths,
             resolution_scale,
         )
-        loss = torch.nn.BCEWithLogitsLoss()
+        loss = MSSSIML1Loss()
         self.model_loss = make_fused_model_loss(model, loss)
 
     def forward(self, x):

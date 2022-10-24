@@ -740,6 +740,13 @@ class Decoder(nn.Module):
     def duplicate_last(self, x: VideoTensor) -> VideoTensor:
         return torch.cat([x, x[:, [-1]]], dim=1)
 
+    def soft_clip(self, x: VideoTensor) -> VideoTensor:
+        x = torch.sign(x) * torch.log1p(torch.abs(x))
+        _x = x.clip(-1, 1)
+        x = _x.detach() + x - x.detach()
+        x = 0.5 * x + 0.5
+        return x
+
     def forward(self, feats: List[VideoTensor], size: Tuple[int, int]) -> VideoTensor:
         feats = [self.duplicate_last(feat) for feat in feats]
         z = feats[-1]
@@ -750,6 +757,7 @@ class Decoder(nn.Module):
         z = self.fc(z)
         z = self.resize(z)
         z = self.scale(z, size)
+        z = self.soft_clip(z)
         return z
 
 
