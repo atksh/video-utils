@@ -13,13 +13,18 @@ ImageTensor = TT["batch", "channel", "height", "width"]
 VideoTensor = TT["batch", "time", "channel", "height", "width"]
 
 
+class NonLinear(nn.Module):
+    def forward(self, x: TT[...]) -> TT[...]:
+        return F.mish(x)
+
+
 class SELayer(nn.Module):
     def __init__(self, in_channels: int, reduction: int = 16):
         super().__init__()
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
         self.fc = nn.Sequential(
             nn.Linear(in_channels, in_channels // reduction, bias=False),
-            nn.SiLU(),
+            NonLinear(),
             nn.Linear(in_channels // reduction, in_channels, bias=False),
             nn.Sigmoid(),
         )
@@ -69,10 +74,11 @@ class FeedForward(nn.Module):
         super().__init__()
         self.wi = nn.Conv1d(dim, dim * mul, 1)
         self.wo = nn.Conv1d(dim * mul // 2, dim, 1)
+        self.act = NonLinear()
 
     def forward(self, x: ChannelTensor) -> ChannelTensor:
         x1, x2 = self.wi(x).chunk(2, dim=1)
-        x = x1 * F.silu(x2)
+        x = x1 * self.act(x2)
         x = self.wo(x)
         return x
 
