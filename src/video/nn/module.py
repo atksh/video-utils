@@ -60,7 +60,8 @@ class TimeConv(nn.Module):
     def forward(self, x: ChannelTensor) -> ChannelTensor:
         pad = self.pad.expand(x.shape[0], -1, self.dilation)
         x = torch.cat([pad, x], dim=2)
-        return self.conv(x)
+        x = self.conv(x)
+        return x
 
 
 class FeedForward(nn.Module):
