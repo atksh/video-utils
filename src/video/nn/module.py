@@ -163,7 +163,7 @@ class Upsample3D(nn.Module):
 
 
 class LayerScale(nn.Module):
-    def __init__(self, initial_scale: float = 1.0):
+    def __init__(self, initial_scale):
         super().__init__()
         self.scale = nn.Parameter(torch.tensor(initial_scale))
 
@@ -348,7 +348,7 @@ def make_block(
     layer_type: LayerType,
     block_size: int = 8,
     eps: float = 1e-5,
-    initial_scale: float = 1.0,
+    initial_scale: float = 0.1,
     drop_prob: float = 0.0,
     add_prenorm: bool = True,
     add_layer_scale: bool = True,
@@ -358,7 +358,7 @@ def make_block(
     if add_prenorm:
         out.append(wrap_layer(LayerNorm(dim, eps), LayerType.channel, block_size))
     out.append(wrap_layer(module, layer_type, block_size))
-    if add_layer_scale and initial_scale != 1.0:
+    if add_layer_scale:
         out.append(LayerScale(initial_scale))
     if add_droppath and drop_prob > 0.0:
         out.append(DropPath(drop_prob))
@@ -427,7 +427,7 @@ class Stage(nn.Module):
         head_dim: int = 32,
         block_size: int = 8,
         eps: float = 1e-5,
-        initial_scale: float = 1.0,
+        initial_scale: float = 0.1,
         drop_prob: float = 0.0,
         fuse: bool = False,
         reversible: bool = False,
@@ -547,7 +547,7 @@ class DownStage(nn.Module):
         head_dim: int = 32,
         block_size: int = 8,
         eps: float = 1e-5,
-        initial_scale: float = 1.0,
+        initial_scale: float = 0.1,
         drop_prob: float = 0.0,
         fuse: bool = False,
         reversible: bool = False,
@@ -588,7 +588,7 @@ class UpStage(nn.Module):
         head_dim: int = 32,
         block_size: int = 8,
         eps: float = 1e-5,
-        initial_scale: float = 1.0,
+        initial_scale: float = 0.1,
         drop_prob: float = 0.0,
         fuse: bool = False,
         reversible: bool = False,
@@ -628,7 +628,7 @@ class Encoder(nn.Module):
         block_sizes: List[int],
         kernel_sizes: List[int],
         eps: float = 1e-5,
-        initial_scale: float = 1.0,
+        initial_scale: float = 0.1,
         drop_prob: float = 0.0,
         resolution_scale: int = 1,
         fuse: bool = False,
@@ -683,7 +683,7 @@ class Decoder(nn.Module):
         block_sizes: List[int],
         kernel_sizes: List[int],
         eps: float = 1e-5,
-        initial_scale: float = 1.0,
+        initial_scale: float = 0.1,
         drop_prob: float = 0.0,
         resolution_scale: int = 1,
         fuse: bool = False,
