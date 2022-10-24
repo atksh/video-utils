@@ -51,12 +51,15 @@ class SameConv2d(nn.Module):
 
 
 class TimeConv(nn.Module):
-    def __init__(self, dim: int):
+    def __init__(self, dim: int, dilation: int = 1):
         super().__init__()
-        self.conv = nn.Conv1d(dim, dim, 2, bias=False, padding=0)
+        self.dilation = dilation
+        self.conv = nn.Conv1d(dim, dim, 2, bias=False, padding=0, dilation=dilation)
+        self.pad = nn.Parameter(torch.zeros(1, dim, 1))
 
     def forward(self, x: ChannelTensor) -> ChannelTensor:
-        x = F.pad(x, (1, 0))
+        pad = self.pad.expand(x.shape[0], -1, self.dilation)
+        x = torch.cat([pad, x], dim=2)
         return self.conv(x)
 
 
@@ -444,7 +447,16 @@ class Stage(nn.Module):
 
         layers = []
         for _ in range(depth):
-            layers.append((LayerType.time, TimeConv(dim), False, False, False)),
+            for dilation in [1, 2, 4]:
+                layers.append(
+                    (
+                        LayerType.time,
+                        TimeConv(dim, dilation=dilation),
+                        False,
+                        False,
+                        False,
+                    )
+                )
             layers.append(
                 (
                     LayerType.image,
