@@ -81,8 +81,10 @@ class LinearAttention(nn.Module):
         self.to_qkv = nn.Conv1d(dim, hidden_dim * 3, 1, bias=False)
         self.to_out = nn.Conv1d(hidden_dim, dim, 1)
 
-    def forward(self, x: ChannelTensor) -> ChannelTensor:
-        b, _, l = x.shape
+    def forward(self, x: TT["batch", "channel", ...]) -> TT["batch", "channel", ...]:
+        b, _, *size = x.shape
+        l = torch.tensor(size).prod()
+        x = x.view(b, -1, l)
         q, k, v = self.to_qkv(x).chunk(3, dim=1)
         q = q.view(b, self.heads, -1, l)
         k = k.view(b, self.heads, -1, l).softmax(dim=-1)
@@ -92,6 +94,7 @@ class LinearAttention(nn.Module):
         # bhde,bhdn->bhen
         out = torch.matmul(context.transpose(-1, -2), q)
         out = self.to_out(out.view(b, -1, l))
+        out = out.view(b, -1, *size)
         return out
 
 
