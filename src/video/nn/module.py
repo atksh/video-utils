@@ -229,7 +229,7 @@ class BlockWise(nn.Module):
         x = x.transpose(1, 2).contiguous()
         x = x.view(-1, *x.shape[2:])  # (b * n, c, h, w)
         x = self.module(x)
-        x = x.view(b, -1, *x.shape[1:])  # (b, n, c, h, w)
+        x = x.view(b * t, -1, *x.shape[1:])  # (b, n, c, h, w)
         x = x.transpose(1, 2)  # (b, c, n, h, w)
         x = self.unblockify(x, size)
         x = x.view(b, t, *x.shape[1:])
@@ -258,9 +258,9 @@ class HeightWise(nn.Module):
         b, t, _, h, w = x.shape
         x = x.view(b * t, -1, h, w)
         x = x.permute(0, 2, 1, 3).contiguous()
-        x = x.view(b * h, -1, w)
+        x = x.view(b * t * h, -1, w)
         x = self.module(x)
-        x = x.view(b, h, -1, w)
+        x = x.view(b * t, h, *x.shape[1:])
         x = x.permute(0, 2, 1, 3)
         x = x.view(b, t, *x.shape[1:])
         return x
@@ -275,9 +275,9 @@ class WidthWise(nn.Module):
         b, t, _, h, w = x.shape
         x = x.view(b * t, -1, h, w)
         x = x.permute(0, 3, 1, 2).contiguous()
-        x = x.view(b * w, -1, h)
+        x = x.view(b * t * w, -1, h)
         x = self.module(x)
-        x = x.view(b, w, -1, h)
+        x = x.view(b * t, w, *x.shape[1:])
         x = x.permute(0, 2, 3, 1)
         x = x.view(b, t, *x.shape[1:])
         return x
@@ -302,11 +302,12 @@ class TimeWise(nn.Module):
         self.module = module
 
     def forward(self, x: VideoTensor) -> VideoTensor:
-        b, t, _, h, w = x.shape
+        b, _, _, h, w = x.shape
         x = x.permute(0, 3, 4, 2, 1).contiguous()
-        x = x.view(b * h * w, -1, t)
+        x = x.view(b * h * w, *x.shape[3:])
         x = self.module(x)
-        x = x.view(b, h, w, -1, t).permute(0, 4, 3, 1, 2)
+        x = x.view(b, h, w, *x.shape[1:])
+        x = x.permute(0, 4, 3, 1, 2)
         return x
 
 
@@ -460,7 +461,7 @@ class Stage(nn.Module):
             layers.append(
                 (
                     LayerType.block,
-                    ChannelWise(LinearAttention(dim, heads, head_dim)),
+                    LinearAttention(dim, heads, head_dim),
                     True,
                     True,
                     True,
@@ -727,13 +728,13 @@ class Decoder(nn.Module):
 
         self.stages = nn.ModuleList(stages)
         self.fc = ImageWise(SameConv2d(out_widths[-1], out_ch, 1, bias=True))
-        self.resize = nn.Sequential(
-            ImageWise(
+        self.resize = ImageWise(
+            nn.Sequential(
                 SameConv2d(
                     out_ch, out_ch * (self.resolution_scale**2), out_ch, 1, bias=True
-                )
-            ),
-            ImageWise(nn.PixelShuffle(self.resolution_scale)),
+                ),
+                nn.PixelShuffle(self.resolution_scale),
+            )
         )
 
     def scale(self, x: VideoTensor, size: Tuple[int, int]) -> VideoTensor:
