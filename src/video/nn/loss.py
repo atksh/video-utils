@@ -71,8 +71,12 @@ class MSSSIML1Loss(nn.Module):
         sigmaxy = F.conv2d(x * y, self.g_masks, groups=3, padding=self.pad) - muxy
 
         # l(j), cs(j) in MS-SSIM
-        l = (2 * muxy + self.C1) / (mux2 + muy2 + self.C1)  # [B, 15, H, W]
-        cs = (2 * sigmaxy + self.C2) / (sigmax2 + sigmay2 + self.C2)
+        l = (2 * muxy + self.C1) / torch.clamp(
+            mux2 + muy2 + self.C1, min=self.C1
+        )  # [B, 15, H, W]
+        cs = (2 * sigmaxy + self.C2) / torch.clamp(
+            sigmax2 + sigmay2 + self.C2, min=self.C2
+        )  # [B, 15, H, W]
 
         lM = l[:, -1, :, :] * l[:, -2, :, :] * l[:, -3, :, :]
         PIcs = cs.prod(dim=1)
