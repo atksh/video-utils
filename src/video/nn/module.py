@@ -222,8 +222,9 @@ class BlockWise(nn.Module):
         self.module = module
         self.unblockify = UnBlockify()
 
-    def forward(self, x: ImageTensor) -> ImageTensor:
-        b, _, *size = x.shape
+    def forward(self, x: VideoTensor) -> VideoTensor:
+        b, t, _, *size = x.shape
+        x = x.view(b * t, *x.shape[2:])
         x = self.blockify(x)
         x = x.transpose(1, 2).contiguous()
         x = x.view(-1, *x.shape[2:])  # (b * n, c, h, w)
@@ -231,6 +232,7 @@ class BlockWise(nn.Module):
         x = x.view(b, -1, *x.shape[1:])  # (b, n, c, h, w)
         x = x.transpose(1, 2)  # (b, c, n, h, w)
         x = self.unblockify(x, size)
+        x = x.view(b, t, *x.shape[1:])
         return x
 
 
@@ -252,13 +254,15 @@ class HeightWise(nn.Module):
         super().__init__()
         self.module = module
 
-    def forward(self, x: ImageTensor) -> ImageTensor:
-        b, _, h, w = x.shape
+    def forward(self, x: VideoTensor) -> VideoTensor:
+        b, t, _, h, w = x.shape
+        x = x.view(b * t, -1, h, w)
         x = x.permute(0, 2, 1, 3).contiguous()
         x = x.view(b * h, -1, w)
         x = self.module(x)
         x = x.view(b, h, -1, w)
         x = x.permute(0, 2, 1, 3)
+        x = x.view(b, t, *x.shape[1:])
         return x
 
 
@@ -267,13 +271,15 @@ class WidthWise(nn.Module):
         super().__init__()
         self.module = module
 
-    def forward(self, x: ImageTensor) -> ImageTensor:
-        b, _, h, w = x.shape
+    def forward(self, x: VideoTensor) -> VideoTensor:
+        b, t, _, h, w = x.shape
+        x = x.view(b * t, -1, h, w)
         x = x.permute(0, 3, 1, 2).contiguous()
         x = x.view(b * w, -1, h)
         x = self.module(x)
         x = x.view(b, w, -1, h)
         x = x.permute(0, 2, 3, 1)
+        x = x.view(b, t, *x.shape[1:])
         return x
 
 
@@ -282,11 +288,11 @@ class ChannelWise(nn.Module):
         super().__init__()
         self.module = module
 
-    def forward(self, x: ImageTensor) -> ImageTensor:
-        b, _, h, w = x.shape
-        x = x.view(b, -1, h * w)
+    def forward(self, x: VideoTensor) -> VideoTensor:
+        b, t, _, h, w = x.shape
+        x = x.view(b * t, -1, h * w)
         x = self.module(x)
-        x = x.view(b, -1, h, w)
+        x = x.view(b, t, -1, h, w)
         return x
 
 
@@ -321,13 +327,13 @@ def wrap_layer(
     elif layer_type == LayerType.image:
         return ImageWise(module)
     elif layer_type == LayerType.block:
-        return ImageWise(BlockWise(block_size, module))
+        return BlockWise(block_size, module)
     elif layer_type == LayerType.height:
-        return ImageWise(HeightWise(module))
+        return HeightWise(module)
     elif layer_type == LayerType.width:
-        return ImageWise(WidthWise(module))
+        return WidthWise(module)
     elif layer_type == LayerType.channel:
-        return ImageWise(ChannelWise(module))
+        return ChannelWise(module)
     else:
         raise ValueError(f"Unknown layer type {layer_type}")
 
@@ -502,7 +508,7 @@ class Stage(nn.Module):
         self.layers = ResidualSequential(
             layers, split_dim=2, fuse=fuse, reversible=reversible
         )
-        self.norm = ImageWise(ChannelWise(LayerNorm(dim, eps)))
+        self.norm = ChannelWise(LayerNorm(dim, eps))
 
     def make_block(
         self, layer_type, module, add_prenorm, add_layer_scale, add_droppath
