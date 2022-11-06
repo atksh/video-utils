@@ -15,49 +15,9 @@ ImageTensor = TT["batch", "channel", "height", "width"]
 VideoTensor = TT["batch", "time", "channel", "height", "width"]
 
 
-@torch.jit.script
-def mish_jit_fwd(x):
-    return x.mul(torch.tanh(F.softplus(x)))
-
-
-@torch.jit.script
-def mish_jit_bwd(x, grad_output):
-    x_sigmoid = torch.sigmoid(x)
-    x_tanh_sp = F.softplus(x).tanh()
-    return grad_output.mul(x_tanh_sp + x * x_sigmoid * (1 - x_tanh_sp * x_tanh_sp))
-
-
-class MishJitAutoFn(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, x):
-        ctx.save_for_backward(x)
-        return mish_jit_fwd(x)
-
-    @staticmethod
-    def backward(ctx, grad_output):
-        x = ctx.saved_tensors[0]
-        return mish_jit_bwd(x, grad_output)
-
-
-def mish_me(x, inplace=False):
-    return MishJitAutoFn.apply(x)
-
-
-class MishMe(nn.Module):
-    def __init__(self, inplace: bool = False):
-        super(MishMe, self).__init__()
-
-    def forward(self, x):
-        return MishJitAutoFn.apply(x)
-
-
 class NonLinear(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.mish = MishMe()
-
     def forward(self, x: TT[...]) -> TT[...]:
-        return self.mish(x)
+        return F.gelu(x)
 
 
 class SELayer(nn.Module):
