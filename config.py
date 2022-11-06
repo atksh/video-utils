@@ -1,5 +1,4 @@
-# resolution = "448:252"
-resolution = "224:126"
+resolution = "448:252"
 skip_rate = 1
 max_len = 8
 num_workers = 8
@@ -19,4 +18,4 @@ head_widths = [32, 32, 32, 32]
 block_sizes = [16, 8, 4, 4]
 kernel_sizes = [7, 7, 5, 3]
 dec_depths = [2, 2, 6, 2]
-resolution_scale = 1
+resolution_scale = 2
