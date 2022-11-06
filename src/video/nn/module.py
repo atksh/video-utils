@@ -146,9 +146,11 @@ class Downsample3D(nn.Module):
 
     def forward(self, x: VideoTensor) -> VideoTensor:
         b, t = x.shape[:2]
-        x = x.view(b * t, *x.shape[2:])
+        shape = x.shape[2:]
+        x = x.view(b * t, *shape)
         x = self.down(x)
-        x = x.view(b, t, *x.shape[1:])
+        shape = x.shape[1:]
+        x = x.view(b, t, *shape)
         return x
 
 
@@ -171,10 +173,13 @@ class Upsample3D(nn.Module):
 
     def forward(self, x: VideoTensor, y: VideoTensor) -> VideoTensor:
         b, t = x.shape[:2]
-        x = x.view(b * t, *x.shape[2:])
-        y = y.view(b * t, *y.shape[2:])
+        shape = x.shape[2:]
+        x = x.view(b * t, *shape)
+        shape = y.shape[2:]
+        y = y.view(b * t, *shape)
         x = self.up(x, y)
-        x = x.view(b, t, *x.shape[1:])
+        shape = x.shape[1:]
+        x = x.view(b, t, *shape)
         return x
 
 
@@ -243,15 +248,19 @@ class BlockWise(nn.Module):
 
     def forward(self, x: VideoTensor) -> VideoTensor:
         b, t, _, *size = x.shape
-        x = x.view(b * t, *x.shape[2:])
+        shape = x.shape[2:]
+        x = x.view(b * t, *shape)
         x = self.blockify(x)
         x = x.transpose(1, 2).contiguous()
-        x = x.view(-1, *x.shape[2:])  # (b * n, c, h, w)
+        shape = x.shape[2:]
+        x = x.view(-1, *shape)  # (b * n, c, h, w)
         x = self.module(x)
-        x = x.view(b * t, -1, *x.shape[1:])  # (b, n, c, h, w)
+        shape = x.shape[1:]
+        x = x.view(b * t, -1, *shape)  # (b, n, c, h, w)
         x = x.transpose(1, 2)  # (b, c, n, h, w)
         x = self.unblockify(x, size)
-        x = x.view(b, t, *x.shape[1:])
+        shape = x.shape[1:]
+        x = x.view(b, t, *shape)
         return x
 
 
@@ -264,7 +273,8 @@ class ImageWise(nn.Module):
         b, t, _, h, w = x.shape
         x = x.view(b * t, -1, h, w)
         x = self.module(x)
-        x = x.view(b, t, *x.shape[1:])
+        shape = x.shape[1:]
+        x = x.view(b, t, *shape)
         return x
 
 
@@ -279,9 +289,11 @@ class HeightWise(nn.Module):
         x = x.permute(0, 2, 1, 3).contiguous()
         x = x.view(b * t * h, -1, w)
         x = self.module(x)
-        x = x.view(b * t, h, *x.shape[1:])
+        shape = x.shape[1:]
+        x = x.view(b * t, h, *shape)
         x = x.permute(0, 2, 1, 3)
-        x = x.view(b, t, *x.shape[1:])
+        shape = x.shape[1:]
+        x = x.view(b, t, *shape)
         return x
 
 
@@ -296,9 +308,11 @@ class WidthWise(nn.Module):
         x = x.permute(0, 3, 1, 2).contiguous()
         x = x.view(b * t * w, -1, h)
         x = self.module(x)
-        x = x.view(b * t, w, *x.shape[1:])
+        shape = x.shape[1:]
+        x = x.view(b * t, w, *shape)
         x = x.permute(0, 2, 3, 1)
-        x = x.view(b, t, *x.shape[1:])
+        shape = x.shape[1:]
+        x = x.view(b, t, *shape)
         return x
 
 
@@ -323,9 +337,11 @@ class TimeWise(nn.Module):
     def forward(self, x: VideoTensor) -> VideoTensor:
         b, _, _, h, w = x.shape
         x = x.permute(0, 3, 4, 2, 1).contiguous()
-        x = x.view(b * h * w, *x.shape[3:])
+        shape = x.shape[3:]
+        x = x.view(b * h * w, *shape)
         x = self.module(x)
-        x = x.view(b, h, w, *x.shape[1:])
+        shape = x.shape[1:]
+        x = x.view(b, h, w, *shape)
         x = x.permute(0, 4, 3, 1, 2)
         return x
 
@@ -771,9 +787,11 @@ class Decoder(nn.Module):
 
     def scale(self, x: VideoTensor, size: Tuple[int, int]) -> VideoTensor:
         b, t = x.shape[:2]
-        x = x.view(b * t, *x.shape[2:])
+        shape = x.shape[2:]
+        x = x.view(b * t, *shape)
         x = F.interpolate(x, size, mode="bilinear", align_corners=True)
-        x = x.view(b, t, *x.shape[1:])
+        shape = x.shape[1:]
+        x = x.view(b, t, *shape)
         return x
 
     def duplicate_last(self, x: VideoTensor) -> VideoTensor:
