@@ -177,6 +177,23 @@ class LayerNorm(nn.Module):
         return x
 
 
+class RMSNorm(nn.Module):
+    eps: Final[float]
+
+    def __init__(self, dim: int, eps: float = 1e-5):
+        super().__init__()
+        self.eps = eps
+        self.gamma = nn.Parameter(torch.ones(dim))
+        self.beta = nn.Parameter(torch.zeros(dim))
+
+    def forward(self, x: ChannelTensor) -> ChannelTensor:
+        denom_inv = torch.rsqrt(x.var(dim=-1, keepdim=True) + self.eps)
+        gamma = self.gamma.view(1, -1, 1)
+        beta = self.beta.view(1, -1, 1)
+        x = x * denom_inv * gamma + beta
+        return x
+
+
 class Downsample(nn.Module):
     def __init__(self, dim: int):
         super().__init__()
@@ -438,7 +455,7 @@ def make_block(
 ) -> nn.Module:
     out = []
     if add_prenorm:
-        out.append(wrap_layer(LayerNorm(dim, eps), LayerType.channel, block_size))
+        out.append(wrap_layer(RMSNorm(dim, eps), LayerType.channel, block_size))
     out.append(wrap_layer(module, layer_type, block_size))
     if add_layer_scale:
         out.append(LayerScale(initial_scale))
@@ -612,7 +629,7 @@ class Stage(nn.Module):
         self.layers = ResidualSequential(
             layers, split_dim=2, fuse=fuse, reversible=reversible
         )
-        self.norm = ChannelWise(LayerNorm(dim, eps))
+        self.norm = ChannelWise(RMSNorm(dim, eps))
 
     def make_block(
         self, layer_type, module, add_prenorm, add_layer_scale, add_droppath
