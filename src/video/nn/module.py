@@ -915,5 +915,4 @@ class ModelWithLoss(nn.Module):
 
 
 def make_fused_model_loss(model: nn.Module, loss: nn.Module):
-    # return memory_efficient_fusion(ModelWithLoss(model, loss))
-    return ModelWithLoss(model, loss)
+    return memory_efficient_fusion(ModelWithLoss(model, loss))
