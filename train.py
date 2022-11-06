@@ -33,6 +33,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     cache_dir = "cache"
     path = list(glob.glob("data/*.mp4"))
+    max_epochs = 1 if args.debug else max_epochs
     if args.debug:
         path = ["video2.mp4"]
     print(path)
@@ -70,6 +71,7 @@ if __name__ == "__main__":
         limit_test_batches=1.0 / skip_rate,
         callbacks=[precision_callback, checkpoint_callback],
         accumulate_grad_batches=accumulate_grad_batchs,
+        profiler="pytorch" if args.debug else False,
     )
 
     train_dl = create_dm(path)
