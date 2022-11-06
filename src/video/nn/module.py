@@ -903,7 +903,7 @@ class VideoModel(nn.Module):
 class ModelWithLoss(nn.Module):
     def __init__(self, model: nn.Module, loss: nn.Module):
         super().__init__()
-        self.model = memory_efficient_fusion(model)
+        self.model = model
         self.loss = loss
 
     def forward(self, x: VideoTensor, y: Optional[VideoTensor] = None) -> VideoTensor:
