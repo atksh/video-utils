@@ -33,7 +33,7 @@ class SELayer(nn.Module):
         b, c, _, _ = x.size()
         y = self.avg_pool(x).view(b, c)
         y = self.fc(y).view(b, c, 1, 1)
-        return x * y.expand_as(x)
+        return x * y
 
 
 class SameConv2d(nn.Module):
@@ -63,7 +63,8 @@ class TimeConv(nn.Module):
         self.pad = nn.Parameter(torch.zeros(1, dim, 1))
 
     def forward(self, x: ChannelTensor) -> ChannelTensor:
-        pad = self.pad.expand(x.shape[0], -1, self.dilation)
+        b = x.shape[0]
+        pad = self.pad.repeat((b, 1, self.dilation))
         x = torch.cat([pad, x], dim=2)
         x = self.conv(x)
         return x
@@ -873,4 +874,5 @@ class ModelWithLoss(nn.Module):
 
 
 def make_fused_model_loss(model: nn.Module, loss: nn.Module):
-    return memory_efficient_fusion(ModelWithLoss(model, loss))
+    # return memory_efficient_fusion(ModelWithLoss(model, loss))
+    return ModelWithLoss(model, loss)
