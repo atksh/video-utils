@@ -12,11 +12,57 @@ from torchtyping import TensorType as TT
 ChannelTensor = TT["batch", "channel", "length"]
 ImageTensor = TT["batch", "channel", "height", "width"]
 VideoTensor = TT["batch", "time", "channel", "height", "width"]
+import torch
+from torch import nn as nn
+from torch.nn import functional as F
+
+
+@torch.jit.script
+def swish_jit_fwd(x):
+    return x.mul(torch.sigmoid(x))
+
+
+@torch.jit.script
+def swish_jit_bwd(x, grad_output):
+    x_sigmoid = torch.sigmoid(x)
+    return grad_output * (x_sigmoid * (1 + x * (1 - x_sigmoid)))
+
+
+class SwishJitAutoFn(torch.autograd.Function):
+    @staticmethod
+    def symbolic(g, x):
+        return g.op("Mul", x, g.op("Sigmoid", x))
+
+    @staticmethod
+    def forward(ctx, x):
+        ctx.save_for_backward(x)
+        return swish_jit_fwd(x)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        x = ctx.saved_tensors[0]
+        return swish_jit_bwd(x, grad_output)
+
+
+def swish_me(x, inplace=False):
+    return SwishJitAutoFn.apply(x)
+
+
+class SwishMe(nn.Module):
+    def __init__(self, inplace: bool = False):
+        super(SwishMe, self).__init__()
+
+    def forward(self, x):
+        return SwishJitAutoFn.apply(x)
 
 
 class NonLinear(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.swish = SwishMe()
+
     def forward(self, x: TT[...]) -> TT[...]:
-        return F.gelu(x)
+        return self.swish(x)
 
 
 class SELayer(nn.Module):
