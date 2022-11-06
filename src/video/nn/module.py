@@ -584,7 +584,7 @@ class Stage(nn.Module):
             )
             layers.append(
                 (
-                    LayerType.block,
+                    LayerType.image,
                     LinearAttention(dim, heads, head_dim),
                     True,
                     True,
