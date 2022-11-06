@@ -95,7 +95,10 @@ class LinearAttention(nn.Module):
         self, x: Union[ChannelTensor, ImageTensor]
     ) -> Union[ChannelTensor, ImageTensor]:
         b, _, *size = x.shape
-        l = torch.tensor(size).prod()
+        if len(size) == 2:
+            l = size[0] * size[1]
+        elif len(size) == 1:
+            l = size[0]
         x = x.view(b, -1, l)
         q, k, v = self.to_qkv(x).chunk(3, dim=1)
         q = q.view(b, self.heads, -1, l)
