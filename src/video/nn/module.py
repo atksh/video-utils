@@ -12,9 +12,6 @@ from torchtyping import TensorType as TT
 ChannelTensor = TT["batch", "channel", "length"]
 ImageTensor = TT["batch", "channel", "height", "width"]
 VideoTensor = TT["batch", "time", "channel", "height", "width"]
-import torch
-from torch import nn as nn
-from torch.nn import functional as F
 
 
 @torch.jit.script
