@@ -15,51 +15,48 @@ VideoTensor = TT["batch", "time", "channel", "height", "width"]
 
 
 @torch.jit.script
-def swish_jit_fwd(x):
-    return x.mul(torch.sigmoid(x))
+def mish_jit_fwd(x):
+    return x.mul(torch.tanh(F.softplus(x)))
 
 
 @torch.jit.script
-def swish_jit_bwd(x, grad_output):
+def mish_jit_bwd(x, grad_output):
     x_sigmoid = torch.sigmoid(x)
-    return grad_output * (x_sigmoid * (1 + x * (1 - x_sigmoid)))
+    x_tanh_sp = F.softplus(x).tanh()
+    return grad_output.mul(x_tanh_sp + x * x_sigmoid * (1 - x_tanh_sp * x_tanh_sp))
 
 
-class SwishJitAutoFn(torch.autograd.Function):
-    @staticmethod
-    def symbolic(g, x):
-        return g.op("Mul", x, g.op("Sigmoid", x))
-
+class MishJitAutoFn(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x):
         ctx.save_for_backward(x)
-        return swish_jit_fwd(x)
+        return mish_jit_fwd(x)
 
     @staticmethod
     def backward(ctx, grad_output):
         x = ctx.saved_tensors[0]
-        return swish_jit_bwd(x, grad_output)
+        return mish_jit_bwd(x, grad_output)
 
 
-def swish_me(x, inplace=False):
-    return SwishJitAutoFn.apply(x)
+def mish_me(x, inplace=False):
+    return MishJitAutoFn.apply(x)
 
 
-class SwishMe(nn.Module):
+class MishMe(nn.Module):
     def __init__(self, inplace: bool = False):
-        super(SwishMe, self).__init__()
+        super(MishMe, self).__init__()
 
     def forward(self, x):
-        return SwishJitAutoFn.apply(x)
+        return MishJitAutoFn.apply(x)
 
 
 class NonLinear(nn.Module):
     def __init__(self):
         super().__init__()
-        self.swish = SwishMe()
+        self.mish = MishMe()
 
     def forward(self, x: TT[...]) -> TT[...]:
-        return self.swish(x)
+        return self.mish(x)
 
 
 class SELayer(nn.Module):
