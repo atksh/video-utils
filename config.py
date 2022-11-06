@@ -1,7 +1,7 @@
 resolution = "448:252"
 skip_rate = 5
 max_len = 16
-num_workers = 8
+num_workers = 2
 
 train_batch_size = 1
 predict_batch_size = 1
