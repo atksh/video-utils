@@ -1,4 +1,5 @@
 import enum
+import math
 from typing import List, Optional, Tuple, Union
 
 import revlib
@@ -271,61 +272,81 @@ class DropPath(nn.Module):
         return x
 
 
-class Blockify(nn.Module):
-    block_size: Final[Tuple[int, int]]
+def window_partition(
+    x: ImageTensor, window_size: Tuple[int, int]
+) -> TT["batchxnum_windows", "channel", "window_size", "window_size"]:
+    """
+    Args:
+        x: (B, C, H, W)
+        window_size (int): window size
+    Returns:
+        windows: (num_windows*B, C, window_size, window_size)
+    """
+    B, C, H, W = x.shape
+    # pad
+    pad_h = (window_size[0] - H % window_size[0]) % window_size[0]
+    pad_w = (window_size[1] - W % window_size[1]) % window_size[1]
+    x = F.pad(x, (0, pad_w, 0, pad_h), mode="reflect")
+    num_h = math.ceil(H / window_size[0])
+    num_w = math.ceil(W / window_size[1])
+    x = x.view(
+        B,
+        C,
+        num_h,
+        window_size[0],
+        num_w,
+        window_size[1],
+    )
+    windows = (
+        x.permute(0, 2, 4, 1, 3, 5)
+        .contiguous()
+        .view(-1, C, window_size[0], window_size[1])
+    )
+    return windows
 
-    def __init__(self, block_size: Union[int, Tuple[int]]):
-        super().__init__()
-        if isinstance(block_size, int):
-            block_size = (block_size, block_size)
-        self.block_size = block_size
 
-    def forward(
-        self, x: ImageTensor
-    ) -> TT["batch", "channel", "num_blocks", "block_heigh", "block_width"]:
-        b, c, h, w = x.shape
-        x = x.contiguous().view(b * c, 1, h, w)
-        x = F.unfold(x, self.block_size, stride=self.block_size)
-        x = x.transpose(1, 2).contiguous()
-        x = x.view(b, c, -1, *self.block_size)
-        return x
-
-
-class UnBlockify(nn.Module):
-    def forward(
-        self,
-        x: TT["batch", "channel", "num_blocks", "block_heigh", "block_width"],
-        size: Tuple[int, int],
-    ) -> ImageTensor:
-        b, c, n, h, w = x.shape
-        block_size = (h, w)
-        x = x.contiguous().view(b * c, n, h * w)
-        x = x.transpose(1, 2)
-        x = F.fold(x, size, block_size, stride=block_size)
-        x = x.contiguous().view(b, c, *size)
-        return x
+def window_reverse(
+    windows: TT["batchxnum_windows", "channel", "window_size", "window_size"],
+    window_size: Tuple[int, int],
+    img_size: Tuple[int, int],
+) -> ImageTensor:
+    """
+    Args:
+        windows: (num_windows * B, C, window_size[0], window_size[1])
+        window_size (Tuple[int, int]): Window size
+        img_size (Tuple[int, int]): Image size
+    Returns:
+        x: (B, C, H, W)
+    """
+    H, W = img_size
+    C = windows.shape[1]
+    num_h = math.ceil(H / window_size[0])
+    num_w = math.ceil(W / window_size[1])
+    x = windows.view(-1, num_h, num_w, C, window_size[0], window_size[1])
+    x = x.permute(0, 3, 1, 4, 2, 5).contiguous()
+    x = x.view(-1, C, num_h * window_size[0], num_w * window_size[1])
+    # unpad
+    x = x[:, :, :H, :W]
+    return x
 
 
 class BlockWise(nn.Module):
+    block_size: Final[Tuple[int, int]]
+
     def __init__(self, block_size: Union[int, Tuple[int]], module: nn.Module):
         super().__init__()
-        self.blockify = Blockify(block_size)
+        self.block_size = (
+            (block_size, block_size) if isinstance(block_size, int) else block_size
+        )
         self.module = module
-        self.unblockify = UnBlockify()
 
     def forward(self, x: VideoTensor) -> VideoTensor:
         b, t, _, *size = x.shape
         shape = x.shape[2:]
         x = x.view(b * t, *shape)
-        x = self.blockify(x)
-        x = x.transpose(1, 2).contiguous()
-        shape = x.shape[2:]
-        x = x.view(-1, *shape)  # (b * n, c, h, w)
+        x = window_partition(x, self.block_size)
         x = self.module(x)
-        shape = x.shape[1:]
-        x = x.view(b * t, -1, *shape)  # (b, n, c, h, w)
-        x = x.transpose(1, 2)  # (b, c, n, h, w)
-        x = self.unblockify(x, size)
+        x = window_reverse(x, self.block_size, size)
         shape = x.shape[1:]
         x = x.view(b, t, *shape)
         return x
@@ -580,7 +601,7 @@ class Stage(nn.Module):
             )
             layers.append(
                 (
-                    LayerType.image,
+                    LayerType.block,
                     LinearAttention(dim, heads, head_dim),
                     True,
                     True,
