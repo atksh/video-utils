@@ -824,7 +824,7 @@ class Decoder(nn.Module):
         z = z[:, [-1]]
         z = self.resize(z)
         z = self.scale(z, size)
-        z = torch.tanh(z)
+        z = torch.sigmoid(z)
         return z
 
 
