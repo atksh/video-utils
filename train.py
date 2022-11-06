@@ -36,7 +36,6 @@ if __name__ == "__main__":
     max_epochs = 1000
     if args.debug:
         path = ["video2.mp4"]
-        max_epochs = 1
     print(path)
 
     model = Model(
@@ -70,7 +69,6 @@ if __name__ == "__main__":
         limit_test_batches=1.0 / skip_rate,
         callbacks=[precision_callback, checkpoint_callback],
         accumulate_grad_batches=accumulate_grad_batchs,
-        profiler="pytorch" if args.debug else False,
     )
 
     train_dl = create_dm(path)
