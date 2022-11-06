@@ -61,8 +61,8 @@ def ReversibleSequential(layers, split_dim):
 
 class VideoToImage(nn.Module):
     def forward(self, x):
-        _, _, c, h, w = x.shape
-        return x.view(-1, c, h, w)
+        b, t, c, h, w = x.shape
+        return x.view(b * t, c, h, w)
 
 
 class ImageToVideo(nn.Module):
