@@ -67,7 +67,7 @@ if __name__ == "__main__":
         limit_train_batches=1.0 / skip_rate,
         limit_val_batches=1.0 / skip_rate,
         limit_test_batches=1.0 / skip_rate,
-        callbacks=[precision_callback, checkpoint_callback],
+        callbacks=[checkpoint_callback],
         accumulate_grad_batches=accumulate_grad_batchs,
         terminate_on_nan=True,
     )
