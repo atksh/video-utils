@@ -33,12 +33,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
     cache_dir = "cache"
     path = list(glob.glob("data/*.mp4"))
-    max_epochs = 1 if args.debug else max_epochs
+    max_epochs = 1000
     if args.debug:
         path = ["video2.mp4"]
+        max_epochs = 1
     print(path)
-
-    max_epochs = 1000
 
     model = Model(
         in_ch=in_ch,
