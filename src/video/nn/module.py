@@ -6,6 +6,7 @@ import torch
 import torch.nn.functional as F
 from functorch.compile import memory_efficient_fusion
 from torch import nn
+from torch.jit import Final
 from torchtyping import TensorType as TT
 
 ChannelTensor = TT["batch", "channel", "length"]
@@ -56,6 +57,8 @@ class SameConv2d(nn.Module):
 
 
 class TimeConv(nn.Module):
+    dilation: Final[int]
+
     def __init__(self, dim: int, dilation: int = 1):
         super().__init__()
         self.dilation = dilation
@@ -85,6 +88,8 @@ class FeedForward(nn.Module):
 
 
 class LinearAttention(nn.Module):
+    heads: Final[int]
+
     def __init__(self, dim: int, heads: int = 4, dim_head: int = 32):
         super().__init__()
         self.heads = heads
@@ -115,6 +120,9 @@ class LinearAttention(nn.Module):
 
 
 class LayerNorm(nn.Module):
+    eps: Final[float]
+    normalized_shape: Final[Tuple[int]]
+
     def __init__(self, dim: int, eps: float = 1e-5):
         super().__init__()
         self.eps = eps
@@ -207,6 +215,8 @@ class DropPath(nn.Module):
 
 
 class Blockify(nn.Module):
+    block_size: Final[Tuple[int, int]]
+
     def __init__(self, block_size: Union[int, Tuple[int]]):
         super().__init__()
         if isinstance(block_size, int):
@@ -401,6 +411,8 @@ def make_block(
 
 
 class RevResidualSequential(nn.Module):
+    split_dim: Final[int]
+
     def __init__(self, layers, split_dim, fuse: bool = True):
         super().__init__()
         self.split_dim = split_dim
@@ -450,6 +462,13 @@ class ResidualSequential(nn.Module):
 
 
 class Stage(nn.Module):
+    dim: Final[int]
+    depth: Final[int]
+    block_size = Final[int]
+    eps: Final[float]
+    initial_scale: Final[float]
+    drop_prob: Final[float]
+
     def __init__(
         self,
         dim: int,
@@ -659,6 +678,8 @@ class UpStage(nn.Module):
 
 
 class Encoder(nn.Module):
+    resolution_scale: Final[int]
+
     def __init__(
         self,
         in_ch: int,
@@ -712,6 +733,8 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
+    resolution_scale: Final[int]
+
     def __init__(
         self,
         out_ch: int,
@@ -880,7 +903,7 @@ class VideoModel(nn.Module):
 class ModelWithLoss(nn.Module):
     def __init__(self, model: nn.Module, loss: nn.Module):
         super().__init__()
-        self.model = model
+        self.model = memory_efficient_fusion(model)
         self.loss = loss
 
     def forward(self, x: VideoTensor, y: Optional[VideoTensor] = None) -> VideoTensor:
