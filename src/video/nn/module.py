@@ -16,7 +16,7 @@ VideoTensor = TT["batch", "time", "channel", "height", "width"]
 
 class NonLinear(nn.Module):
     def forward(self, x: TT[...]) -> TT[...]:
-        return F.leaky_relu(x, 0.01)
+        return F.gelu(x)
 
 
 class SELayer(nn.Module):
