@@ -69,7 +69,6 @@ if __name__ == "__main__":
         limit_test_batches=1.0 / skip_rate,
         callbacks=[checkpoint_callback],
         accumulate_grad_batches=accumulate_grad_batchs,
-        terminate_on_nan=True,
     )
 
     train_dl = create_dm(path)
