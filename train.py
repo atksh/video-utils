@@ -57,7 +57,7 @@ if __name__ == "__main__":
     trainer = pl.Trainer(
         accelerator="gpu",
         devices=1,
-        precision=16,
+        precision=32,
         max_epochs=max_epochs,
         log_every_n_steps=1,
         benchmark=True,
@@ -68,7 +68,7 @@ if __name__ == "__main__":
         limit_train_batches=1.0 / skip_rate,
         limit_val_batches=1.0 / skip_rate,
         limit_test_batches=1.0 / skip_rate,
-        callbacks=[checkpoint_callback],
+        callbacks=[precision_callback, checkpoint_callback],
         accumulate_grad_batches=accumulate_grad_batchs,
     )
 
