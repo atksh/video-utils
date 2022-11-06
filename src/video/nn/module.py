@@ -16,7 +16,7 @@ VideoTensor = TT["batch", "time", "channel", "height", "width"]
 
 class NonLinear(nn.Module):
     def forward(self, x: TT[...]) -> TT[...]:
-        return F.gelu(x)
+        return F.leaky_relu(x, 0.01)
 
 
 class SELayer(nn.Module):
@@ -512,42 +512,42 @@ class Stage(nn.Module):
                     False,
                 )
             )
-            layers.append(
-                (
-                    LayerType.time,
-                    LinearAttention(dim, heads, head_dim),
-                    True,
-                    True,
-                    True,
-                )
-            )
-            layers.append(
-                (
-                    LayerType.block,
-                    LinearAttention(dim, heads, head_dim),
-                    True,
-                    True,
-                    True,
-                )
-            )
-            layers.append(
-                (
-                    LayerType.height,
-                    LinearAttention(dim, heads, head_dim),
-                    True,
-                    True,
-                    True,
-                )
-            )
-            layers.append(
-                (
-                    LayerType.width,
-                    LinearAttention(dim, heads, head_dim),
-                    True,
-                    True,
-                    True,
-                )
-            )
+            # layers.append(
+            #     (
+            #         LayerType.time,
+            #         LinearAttention(dim, heads, head_dim),
+            #         True,
+            #         True,
+            #         True,
+            #     )
+            # )
+            # layers.append(
+            #     (
+            #         LayerType.block,
+            #         LinearAttention(dim, heads, head_dim),
+            #         True,
+            #         True,
+            #         True,
+            #     )
+            # )
+            # layers.append(
+            #     (
+            #         LayerType.height,
+            #         LinearAttention(dim, heads, head_dim),
+            #         True,
+            #         True,
+            #         True,
+            #     )
+            # )
+            # layers.append(
+            #     (
+            #         LayerType.width,
+            #         LinearAttention(dim, heads, head_dim),
+            #         True,
+            #         True,
+            #         True,
+            #     )
+            # )
             layers.append((LayerType.channel, FeedForward(dim), True, True, True))
             layers.append(
                 (
@@ -558,15 +558,15 @@ class Stage(nn.Module):
                     False,
                 )
             )
-            layers.append(
-                (
-                    LayerType.block,
-                    SELayer(dim),
-                    False,
-                    False,
-                    False,
-                )
-            )
+            # layers.append(
+            #     (
+            #         LayerType.block,
+            #         SELayer(dim),
+            #         False,
+            #         False,
+            #         False,
+            #     )
+            # )
 
         layers = [self.make_block(*args) for args in layers]
         self.layers = ResidualSequential(
@@ -915,4 +915,5 @@ class ModelWithLoss(nn.Module):
 
 
 def make_fused_model_loss(model: nn.Module, loss: nn.Module):
-    return memory_efficient_fusion(ModelWithLoss(model, loss))
+    # return memory_efficient_fusion(ModelWithLoss(model, loss))
+    return ModelWithLoss(model, loss)
